@@ -186,7 +186,13 @@ input[type=range] { padding: 0; border: 0; background: transparent; accent-color
 
 .gate { min-height: 100dvh; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 24px 16px; text-align: center; }
 .gate .tag { color: var(--muted); margin-top: -4px; }
-.gate-box { max-width: 380px; border: 1px solid var(--line); background: var(--panel); border-radius: 12px; padding: 18px; display: flex; flex-direction: column; gap: 10px; margin-top: 20px; }
+.gate-pitch { max-width: 440px; margin: 14px 0 0; line-height: 1.55; font-size: 13px; color: #cfcfcf; }
+.gate-features { max-width: 440px; width: 100%; display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 16px; text-align: left; }
+.gate-features div { border: 1px solid var(--line); border-radius: 10px; padding: 10px; display: flex; flex-direction: column; gap: 3px; background: rgba(255,255,255,.015); }
+.gate-features span { font-size: 20px; }
+.gate-features b { font-size: 12px; color: var(--green); }
+.gate-features small { font-size: 11px; color: var(--muted); line-height: 1.4; }
+.gate-box { max-width: 440px; width: 100%; border: 1px solid var(--line); background: var(--panel); border-radius: 12px; padding: 18px; display: flex; flex-direction: column; gap: 10px; margin-top: 20px; }
 .gate-box p { margin: 0 0 6px; line-height: 1.5; font-size: 13px; }
 
 .media { display: flex; flex-direction: column; gap: 6px; }

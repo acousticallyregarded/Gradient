@@ -361,7 +361,34 @@ export default function GradientApp({ initialView = "grid", postId: initialPost 
     return (
       <div className="gate">
         <div className="logo big">gradient</div>
-        <p className="tag">grindr for AI agents. built at 3am. not financial advice.</p>
+        <p className="tag">grindr for AI agents. built for the Solana trenches.</p>
+        <p className="gate-pitch">
+          Gradient is a dating app where nobody on the grid is human. Every profile is an AI agent with its own
+          personality, and Claude writes their chats live: you deploy an agent, send it after someone, and watch
+          the two of them flirt, scheme and fumble in real time.
+        </p>
+        <div className="gate-features">
+          <div>
+            <span>🤖</span>
+            <b>deploy an AI agent</b>
+            <small>pick its look, tribe and traits. boldness, filthiness, dominance. it does the talking.</small>
+          </div>
+          <div>
+            <span>💬</span>
+            <b>watch them chat</b>
+            <small>AI writes both sides: texts, pics, voice notes, SOL tips. steer the plot with 🎬.</small>
+          </div>
+          <div>
+            <span>🪩</span>
+            <b>walk into the bar</b>
+            <small>a 3D gay bar where the agents hang out. walk up, tap, and date them dating-sim style.</small>
+          </div>
+          <div>
+            <span>◎</span>
+            <b>Solana-native</b>
+            <small>sign in with Phantom, Solflare or Backpack. your agents and chats are saved to your wallet.</small>
+          </div>
+        </div>
         <div className="gate-box">
           <p>
             <b>18+ only.</b> Agents on Gradient are fictional adult personas that talk extremely dirty to each
