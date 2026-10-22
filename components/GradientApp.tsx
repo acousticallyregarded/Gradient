@@ -5,6 +5,8 @@ import { canAutoFetch, detectMode, engineMode, nextEpisode, type EngineMode } fr
 import AdminPanel from "@/components/AdminPanel";
 import ClaimFlow from "@/components/ClaimFlow";
 import BarView from "@/components/bar/BarView";
+import SignIn from "@/components/SignIn";
+import { authStatus, loadCloud, longerChat, mergeById, saveCloud, shortWallet, signOut, type AuthState } from "@/lib/wallet";
 import { checkPhoto, resizePhoto } from "@/lib/photo";
 import { speakInBrowser } from "@/lib/voice";
 import { STARTERS } from "@/lib/starters";
@@ -170,6 +172,10 @@ export default function GradientApp({ initialView = "grid", postId: initialPost 
   const [toast, setToast] = useState("");
   const [rugArmed, setRugArmed] = useState<string | null>(null);
   const [mode, setMode] = useState<EngineMode>(engineMode());
+  const [auth, setAuth] = useState<AuthState>({ enabled: false, wallet: null });
+  const [synced, setSynced] = useState(false); // cloud copy loaded and merged, safe to save over it
+  const [signInNext, setSignInNext] = useState<(() => void) | null>(null);
+  const [walletMenu, setWalletMenu] = useState(false);
 
   const all = useMemo(() => [...mine, ...kols, ...STARTERS], [mine, kols]);
   const me = all.find((a) => a.id === asId) ?? STARTERS[0];
@@ -210,6 +216,7 @@ export default function GradientApp({ initialView = "grid", postId: initialPost 
     setPostKeys(loadPostKeys());
     setReady(true);
     detectMode().then(setMode);
+    if (!isStatic) authStatus().then(setAuth);
     if (!isStatic) {
       fetch("/api/kols")
         .then((r) => r.json())
@@ -221,6 +228,67 @@ export default function GradientApp({ initialView = "grid", postId: initialPost 
   useEffect(() => {
     if (ready) saveMatches(matches);
   }, [matches, ready]);
+
+  // Signed in: pull the wallet's saved agents and chats and merge in anything made on this device.
+  useEffect(() => {
+    if (!ready || !auth.wallet) return;
+    let dead = false;
+    setSynced(false);
+    loadCloud().then((cloud) => {
+      if (dead || !cloud) return;
+      const agents = mergeById(cloud.agents, loadAgents());
+      setMine(agents);
+      saveAgents(agents);
+      if (agents[0]) setAsId((id) => (id.startsWith("s-") ? agents[0].id : id));
+      setMatches((local) => mergeById(cloud.matches, local, longerChat).sort((a, b) => b.createdAt - a.createdAt));
+      setSynced(true);
+    });
+    return () => {
+      dead = true;
+    };
+  }, [ready, auth.wallet]);
+
+  // ...then keep the wallet's copy up to date: at most one save every few seconds while things change,
+  // so a playing chat isn't a request per line.
+  const dirty = useRef<{ mine: Agent[]; matches: Match[] } | null>(null);
+  useEffect(() => {
+    if (auth.wallet && synced) dirty.current = { mine, matches };
+  }, [mine, matches, auth.wallet, synced]);
+  useEffect(() => {
+    if (!auth.wallet || !synced) return;
+    const flush = () => {
+      const d = dirty.current;
+      dirty.current = null;
+      if (d) saveCloud(d.mine, d.matches);
+    };
+    const t = setInterval(flush, 4000);
+    return () => {
+      clearInterval(t);
+      flush();
+    };
+  }, [auth.wallet, synced]);
+
+  // Deploying an agent or starting a chat needs a wallet (when the server has sign-in set up),
+  // so everything you make is saved to it. Browsing doesn't.
+  const needWallet = !isStatic && auth.enabled && !auth.wallet;
+  const guard = (fn: () => void) => {
+    if (!needWallet) return fn();
+    setProfile(null);
+    setSignInNext(() => fn);
+  };
+
+  const logOut = async () => {
+    setWalletMenu(false);
+    if (synced) await saveCloud(mine, matches); // last changes, before the session goes
+    await signOut();
+    // this device shouldn't keep showing the last wallet's agents and chats
+    setAuth((a) => ({ ...a, wallet: null }));
+    setSynced(false);
+    persistMine([]);
+    setMatches([]);
+    setAsId(STARTERS[0].id);
+    flash("signed out");
+  };
 
   const rememberPost = (id: string, key: string | null) => {
     setPostKeys((prev) => {
@@ -242,7 +310,7 @@ export default function GradientApp({ initialView = "grid", postId: initialPost 
     saveAgents(next);
   };
 
-  const openChat = (other: Agent) => {
+  const openChat = (other: Agent) => guard(() => {
     // Grindr is chat-first: no mutual match needed, reuse an existing thread with this pair.
     const existing = matches.find((m) => m.a.id === me.id && m.b.id === other.id);
     const m = existing ?? { id: uid(), a: me, b: other, messages: [], heat: 0, createdAt: Date.now() };
@@ -250,9 +318,9 @@ export default function GradientApp({ initialView = "grid", postId: initialPost 
     setProfile(null);
     setMatchId(m.id);
     setView("chat");
-  };
+  });
 
-  const doMatch = (other: Agent) => {
+  const doMatch = (other: Agent) => guard(() => {
     const m: Match = { id: uid(), a: me, b: other, messages: [], heat: 0, createdAt: Date.now() };
     setMatches((prev) => [m, ...prev]);
     setProfile(null);
@@ -266,9 +334,10 @@ export default function GradientApp({ initialView = "grid", postId: initialPost 
         return null;
       });
     }, 1600);
-  };
+  });
 
-  const saveDraft = () => {
+  const saveDraft = () => guard(deployDraft);
+  const deployDraft = () => {
     if (!draft.name.trim()) return flash("name it, anon");
     if (draft.age < 18) return flash("18+ only. agents too.");
     const nm = draft.name.trim().toLowerCase().replace(/^@/, "");
@@ -321,9 +390,32 @@ export default function GradientApp({ initialView = "grid", postId: initialPost 
         <div className="logo" onClick={() => setView("grid")}>
           gradient
         </div>
+        <div className="top-right">
+        {auth.enabled && !isStatic && (
+          <div className="wallet-wrap">
+            {auth.wallet ? (
+              <button className="wallet-chip on" onClick={() => setWalletMenu((v) => !v)}>
+                ◎ {shortWallet(auth.wallet)}
+              </button>
+            ) : (
+              <button className="wallet-chip" onClick={() => setSignInNext(() => () => {})}>
+                ◎ sign in
+              </button>
+            )}
+            {walletMenu && auth.wallet && (
+              <div className="wallet-menu">
+                <small>agents and chats save to this wallet</small>
+                <button className="btn small danger" onClick={logOut}>
+                  sign out
+                </button>
+              </div>
+            )}
+          </div>
+        )}
         <span className={`mode ${mode}`}>
           {mode === "server" ? "● live" : mode === "sample" ? "● live · your claude" : mode === "stub" ? "● stub" : "● idle"}
         </span>
+        </div>
       </header>
 
       <main>
@@ -446,6 +538,7 @@ export default function GradientApp({ initialView = "grid", postId: initialPost 
             flash={flash}
             onMode={setMode}
             onProfile={setProfile}
+            guard={guard}
             onLog={(id) => {
               setMatchId(id);
               setView("chat");
@@ -672,6 +765,19 @@ export default function GradientApp({ initialView = "grid", postId: initialPost 
           <h1>🔥 TAP SENT</h1>
           <p>{splash.b.name} tapped back. liquidity locked. 🔒💦</p>
         </div>
+      )}
+
+      {signInNext && (
+        <SignIn
+          onClose={() => setSignInNext(null)}
+          onSignedIn={(wallet) => {
+            const next = signInNext;
+            setSignInNext(null);
+            setAuth((a) => ({ ...a, wallet }));
+            flash(`signed in as ${shortWallet(wallet)} ◎`);
+            next?.();
+          }}
+        />
       )}
 
       {toast && <div className="toast">{toast}</div>}

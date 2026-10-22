@@ -297,3 +297,16 @@ button.wave.loading { opacity: .6; }
 .vn-controls .btn.on { border-color: var(--green); color: var(--green); }
 .vn-controls .keep-going { margin-right: auto; background: rgba(0,0,0,.7); }
 .vn-director { border: 1px solid var(--line); border-radius: 10px; margin-bottom: 8px; }
+
+/* ---------- wallet sign-in ---------- */
+.top-right { display: flex; align-items: center; gap: 10px; }
+.wallet-wrap { position: relative; }
+.wallet-chip { font-size: 11px; padding: 5px 10px; border-radius: 99px; border: 1px solid var(--purple); color: var(--purple); font-weight: 700; }
+.wallet-chip.on { border-color: var(--green); color: var(--green); }
+.wallet-menu { position: absolute; right: 0; top: calc(100% + 6px); width: 200px; padding: 10px; display: flex; flex-direction: column; gap: 8px; background: var(--panel); border: 1px solid var(--line); border-radius: 8px; z-index: 10; }
+.wallet-menu small { color: var(--muted); font-size: 11px; }
+.signin { padding-top: 14px; }
+.wallet-list { display: flex; flex-direction: column; gap: 0; }
+.wallet-btn { display: flex; align-items: center; justify-content: center; gap: 8px; }
+.wallet-btn span { font-size: 18px; }
+.signin .err { color: var(--hot); }

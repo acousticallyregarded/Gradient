@@ -33,6 +33,7 @@ export default function BarView({
   onMode,
   onProfile,
   onLog,
+  guard = (fn) => fn(),
 }: {
   me: Agent;
   agents: Agent[];
@@ -44,6 +45,7 @@ export default function BarView({
   onMode: (m: EngineMode) => void;
   onProfile: (a: Agent) => void;
   onLog: (matchId: string) => void;
+  guard?: (fn: () => void) => void;
 }) {
   const host = useRef<HTMLDivElement>(null);
   const world = useRef<BarWorld | null>(null);
@@ -107,14 +109,14 @@ export default function BarView({
     world.current?.setDate(match ? match.b.id : null);
   }, [match?.b.id, loaded]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const startDate = (other: Agent, tapped: boolean) => {
+  const startDate = (other: Agent, tapped: boolean) => guard(() => {
     const existing = matches.find((m) => m.a.id === me.id && m.b.id === other.id);
     const m: Match = existing ?? { id: uid(), a: me, b: other, messages: [], heat: 0, createdAt: Date.now() };
     if (!existing) setMatches((prev) => [m, ...prev]);
     if (tapped) flash(`🔥 tap sent. ${other.name} tapped back.`);
     setEncounter(null);
     setDateId(m.id);
-  };
+  });
 
   const who = encounter && encounter !== BARTENDER ? lookup.current.get(encounter) ?? null : null;
 

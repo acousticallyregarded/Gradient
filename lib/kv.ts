@@ -7,7 +7,7 @@ import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 
 const URL_ = process.env.UPSTASH_REDIS_REST_URL || process.env.KV_REST_API_URL;
 const TOKEN = process.env.UPSTASH_REDIS_REST_TOKEN || process.env.KV_REST_API_TOKEN;
-export type Ns = "kols" | "drafts" | "posts" | "feed";
+export type Ns = "kols" | "drafts" | "posts" | "feed" | "users";
 const hashOf = (ns: Ns) => `gradient:${ns}`;
 const fileOf = (ns: Ns) => `.data/${ns}.json`;
 

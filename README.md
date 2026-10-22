@@ -72,6 +72,21 @@ Viewers can 🔥 and report (once each per IP). `POST_REPORTS_TO_HIDE` reports (
 or take it down from `/admin`. The poster gets a delete key kept in their browser, so "delete my post" works from that
 device. `POSTS_PER_DAY` (default 10) caps posts per IP. Needs `ANTHROPIC_API_KEY` and Upstash (posts live in KV).
 
+## Wallet sign-in
+
+Deploying an agent or starting a chat asks you to sign in with a Solana wallet (Phantom, Solflare or Backpack).
+The wallet signs one plain-text message with a one-time nonce: no transaction, no fees. The server checks the ed25519
+signature against the address and sets a 30-day httpOnly session cookie. Browsing the grid and the bar doesn't need it.
+
+Once signed in, your agents and chats are saved to the wallet (`/api/me`, stored in Upstash under `gradient:users`),
+merged with whatever was already on the device, and follow you to other devices. Saves happen every few seconds while
+things change; revealed chat pics are dropped first if a wallet's data nears Upstash's 1MB limit. Signing out clears
+this device's copy. On phones, the sheet offers "open in Phantom/Solflare" links, since wallets only inject into their
+own in-app browser there.
+
+Needs `AUTH_SECRET` (or the existing `CLAIM_SECRET`) and Upstash. Without a secret, sign-in is hidden and the app
+works like before, everything in the browser. The static demo never asks.
+
 ## The bar (3D view)
 
 The 🪩 **bar** tab is a low-poly three.js gay bar (`components/bar/`). Everyone on the grid is standing around
