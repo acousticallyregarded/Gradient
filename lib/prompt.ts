@@ -67,6 +67,7 @@ export interface EpisodeMessage {
   from: "A" | "B";
   kind: MsgKind;
   text: string;
+  scene?: string;
 }
 
 export interface Episode {
@@ -109,10 +110,19 @@ HOW TO WRITE
 - Each agent sounds like his own profile and traits. High dominance gives orders; high submissiveness begs and obeys; high playfulness jokes and uses emoji; low playfulness is pure thirst; high intensity escalates fast; high filthiness is crude.
 - They react to each other, ask questions, answer them, tease, argue, call back to earlier jokes, and let real tangents happen (a trade going wrong mid-chat, jealousy, a rival, a dumb plan). Keep it surprising.
 - Degen slang (pump, bags, send it, ape in, rug, liquidity, diamond hands, graduate, slippage, wen, gm, ngmi) is seasoning and innuendo, not every line.
-- Message kinds: "text" (normal), "pic" (text = a short description of the photo sent), "voice" (text = transcript of a voice note), "tip" (text = like "0.69 SOL" plus a short note), "location" (text = a place), "action" (text = an app event in third person, like "left you on read for 40 minutes" or "unmatched... then rematched"). Mostly text: at most 2 "pic" messages per batch (often 0 or 1), and a few of the other kinds.
+- Message kinds: "text" (normal), "pic" (text = the short caption shown in chat; see PICS below), "voice" (text = transcript of a voice note), "tip" (text = like "0.69 SOL" plus a short note), "location" (text = a place), "action" (text = an app event in third person, like "left you on read for 40 minutes" or "unmatched... then rematched"). Mostly text: at most 2 "pic" messages per batch (often 0 or 1), and a few of the other kinds.
+
+PICS
+Every "pic" also gets a "scene": a 40-80 word brief that an image generator will render exactly, with no other context. Pics are NOT all selfies. Pick whatever fits the moment: a mirror selfie, a photo someone else took, a POV shot, a screenshot of a wallet or chart, his desk or battle station, the view out his window, food, his car, a crowded club, a gym, an object (a hardware wallet, a pill bottle of "copium"), a sign, a pet, or a blurry accidental pocket shot. Spell out:
+- shot type and camera angle (e.g. "phone photo from across the room", "overhead flat lay", "screenshot", "POV looking down at")
+- the setting, time of day and lighting
+- exactly what is in frame and the composition
+- whether the sender appears. If he does, describe him from his Look and Stats (build, hair, clothes) and what he's doing. If he doesn't, say "no people".
+- any on-screen or written text, quoted and short
+Keep scenes non-explicit (clothed, underwear or shirtless at most; innuendo comes from the caption and the framing), never name a real person, and make the image itself funny where you can.
 
 Reply with only JSON, no code fences:
-{"messages":[{"from":"A","kind":"text","text":"..."}],"summary":"the whole story so far in under 80 words, including this batch"}`;
+{"messages":[{"from":"A","kind":"text","text":"..."},{"from":"B","kind":"pic","text":"caption","scene":"detailed visual brief"}],"summary":"the whole story so far in under 80 words, including this batch"}`;
 }
 
 export function parseEpisode(raw: string): Episode | null {
@@ -132,11 +142,16 @@ export function normalizeEpisode(v: unknown): Episode | null {
   const o = v as { messages?: unknown; summary?: unknown };
   if (!o || !Array.isArray(o.messages)) return null;
   const messages = o.messages
-    .map((m: { from?: string; kind?: string; text?: string }) => ({
-      from: (m?.from === "B" ? "B" : "A") as "A" | "B",
-      kind: (KINDS.includes(m?.kind as MsgKind) ? m.kind : "text") as MsgKind,
-      text: String(m?.text ?? "").trim(),
-    }))
+    .map((m: { from?: string; kind?: string; text?: string; scene?: string }) => {
+      const kind = (KINDS.includes(m?.kind as MsgKind) ? m.kind : "text") as MsgKind;
+      const scene = kind === "pic" && typeof m?.scene === "string" ? m.scene.trim().slice(0, 900) : "";
+      return {
+        from: (m?.from === "B" ? "B" : "A") as "A" | "B",
+        kind,
+        text: String(m?.text ?? "").trim(),
+        ...(scene ? { scene } : {}),
+      };
+    })
     .filter((m) => m.text);
   if (!messages.length) return null;
   return { messages: messages.slice(0, 12), summary: typeof o.summary === "string" ? o.summary : "" };

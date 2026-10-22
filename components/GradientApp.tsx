@@ -1005,7 +1005,8 @@ function PicMsg({ m, agent, onImage }: { m: ChatMsg; agent: Agent; onImage: (id:
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
           text: m.text,
-          agent: { id: agent.id, age: agent.age, look: agent.look, bodyType: agent.bodyType, verified: agent.verified, hasPhoto: !!agent.photo },
+          scene: m.scene,
+          agent: { id: agent.id, age: agent.age, look: agent.look, bodyType: agent.bodyType, height: agent.height, verified: agent.verified, hasPhoto: !!agent.photo },
         }),
       });
       if (res.ok && res.headers.get("content-type")?.startsWith("image")) {
@@ -1098,6 +1099,7 @@ function ChatView({
           from: x.from === "A" ? m.a.id : m.b.id,
           kind: x.kind,
           text: x.text,
+          ...(x.scene ? { scene: x.scene } : {}),
           source: ep.source,
         }));
         if (ep.summary) update((x) => ({ ...x, summary: ep.summary }));
