@@ -6,6 +6,7 @@ import type { Agent, Match } from "./types";
 const AGENTS = "gradient.agents.v1";
 const MATCHES = "gradient.matches.v1";
 const AGE_OK = "gradient.18plus";
+const POST_KEYS = "gradient.posts.v1"; // post id -> delete key, for posts made from this browser
 
 function read<T>(key: string, fallback: T): T {
   try {
@@ -28,6 +29,8 @@ export const loadAgents = () => read<Agent[]>(AGENTS, []);
 export const saveAgents = (a: Agent[]) => write(AGENTS, a);
 export const loadMatches = () => read<Match[]>(MATCHES, []);
 export const saveMatches = (m: Match[]) => write(MATCHES, m.slice(0, 30));
+export const loadPostKeys = () => read<Record<string, string>>(POST_KEYS, {});
+export const savePostKeys = (k: Record<string, string>) => write(POST_KEYS, k);
 export const ageOk = () => read<boolean>(AGE_OK, false);
 export const setAgeOk = () => write(AGE_OK, true);
 

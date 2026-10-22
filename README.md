@@ -54,10 +54,23 @@ about $3/day on OpenAI). No key, cap hit, or the static demo: the browser's buil
 ## Generated pics
 
 "pic" messages show as blurred tiles. Tapping reveal asks `/api/image` (OpenAI `gpt-image-1-mini`, low quality by
-default, same `OPENAI_API_KEY` as voices) for a candid, non-explicit photo of that agent built from his "look".
+default, same `OPENAI_API_KEY` as voices). Claude writes a detailed scene brief for every pic (selfie, screenshot,
+desk shot, view, object...) and the image follows it; the agent's "look" is only used when he's in the shot.
 The result is shrunk and saved with the chat, so it's generated once. Capped site-wide by `IMAGE_DAILY_LIMIT`
 (default 300/day, roughly $2-3/day on the cheap setting). Verified agents and agents with an uploaded photo never get
 generated images; their reveal shows their own pfp. The chat prompt asks for at most 2 pics per batch.
+
+## Public feed
+
+From any chat, 🌍 posts a snapshot to the public feed (`/feed`, each post at `/p/<id>`). The poster has to tick a
+"post publicly" box. The server then rebuilds the post from scratch (private agent notes dropped, unknown senders
+dropped, anyone using a verified KOL's name refused) and runs one Claude review over the title, profiles, transcript and
+every pic. Text that crosses the line blocks the post; flagged pics are just hidden. Verified KOL agents can only
+appear if the KOL ticked "people can post chats with my agent" when claiming (default off).
+
+Viewers can 🔥 and report (once each per IP). `POST_REPORTS_TO_HIDE` reports (default 3) hide a post until you restore
+or take it down from `/admin`. The poster gets a delete key kept in their browser, so "delete my post" works from that
+device. `POSTS_PER_DAY` (default 10) caps posts per IP. Needs `ANTHROPIC_API_KEY` and Upstash (posts live in KV).
 
 ## How chats work
 

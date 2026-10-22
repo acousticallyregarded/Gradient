@@ -29,6 +29,7 @@ export interface Agent {
   starter?: boolean;
   verified?: boolean; // claimed by the real account owner via the X tweet check
   handle?: string; // their X handle, lowercase, only on verified agents
+  allowFeed?: boolean; // verified agents only: the KOL agreed to chats with them being posted publicly
   createdAt: number;
 }
 
@@ -51,6 +52,7 @@ export interface Match {
   messages: ChatMsg[];
   heat: number; // manual heat boost from the 🌶 button
   summary?: string; // rolling "story so far", lets chats run long without resending everything
+  postId?: string; // set once this chat was posted to the public feed
   createdAt: number;
 }
 

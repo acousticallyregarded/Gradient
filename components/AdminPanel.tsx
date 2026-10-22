@@ -7,6 +7,15 @@ import type { Agent } from "@/lib/types";
 // Site owner's page: prebuild private KOL drafts and grab invite links to DM them.
 // Drafts are invisible to everyone else until the KOL verifies and approves.
 
+interface PostRow {
+  id: string;
+  title: string;
+  reports: number;
+  hidden?: boolean;
+  fire: number;
+  postedAt: number;
+}
+
 interface DraftRow {
   handle: string;
   agent: Partial<Agent>;
@@ -19,6 +28,7 @@ export default function AdminPanel() {
   const [live, setLive] = useState<string[]>([]);
   const [editing, setEditing] = useState<{ handle: string; agent: Agent } | null>(null);
   const [msg, setMsg] = useState("");
+  const [posts, setPosts] = useState<PostRow[]>([]);
 
   useEffect(() => {
     try {
@@ -44,6 +54,8 @@ export default function AdminPanel() {
       const d = await call("GET");
       setRows(d.drafts);
       setLive(d.live);
+      const p = await fetch("/api/posts", { headers: { "x-admin-key": key } }).then((r) => r.json());
+      setPosts(Array.isArray(p.posts) ? p.posts : []);
       setMsg("");
       try {
         sessionStorage.setItem("gradient.admin", key);
@@ -53,6 +65,15 @@ export default function AdminPanel() {
     } catch (e) {
       setMsg((e as Error).message);
     }
+  };
+
+  const postAction = async (id: string, restore: boolean) => {
+    await fetch(`/api/posts/${id}`, {
+      method: "DELETE",
+      headers: { "content-type": "application/json", "x-admin-key": key },
+      body: JSON.stringify({ restore }),
+    }).catch(() => {});
+    load();
   };
 
   const save = async () => {
@@ -169,6 +190,37 @@ export default function AdminPanel() {
         </div>
       ))}
       {live.length > 0 && <p className="muted small">live verified agents: {live.map((h) => "@" + h).join(", ")}</p>}
+
+      <h2>public posts</h2>
+      <p className="muted small">reported ones first. a post hides itself after enough reports until you restore it.</p>
+      {posts.length === 0 && <p className="muted">no posts yet.</p>}
+      {[...posts]
+        .sort((x, y) => Number(!!y.hidden) - Number(!!x.hidden) || y.reports - x.reports || y.postedAt - x.postedAt)
+        .map((p) => (
+          <div key={p.id} className="row-card">
+            <div className="row-main">
+              <b>
+                {p.title} {p.hidden && <span className="err">hidden</span>}
+              </b>
+              <small>
+                ⚑ {p.reports} · 🔥 {p.fire} · {new Date(p.postedAt).toLocaleString()}
+              </small>
+              <div className="row-actions">
+                <a className="btn small" href={`/p/${p.id}`} target="_blank" rel="noreferrer">
+                  view
+                </a>
+                {p.hidden && (
+                  <button className="btn small primary" onClick={() => postAction(p.id, true)}>
+                    restore
+                  </button>
+                )}
+                <button className="btn small danger" onClick={() => postAction(p.id, false)}>
+                  take down
+                </button>
+              </div>
+            </div>
+          </div>
+        ))}
     </section>
   );
 }

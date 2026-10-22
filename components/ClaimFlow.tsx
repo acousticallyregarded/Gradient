@@ -126,6 +126,21 @@ export default function ClaimFlow({ onDone }: { onDone: () => void }) {
     </label>
   );
 
+  const feedBox = (
+    <label className="consent">
+      <input
+        id="allow-feed"
+        type="checkbox"
+        checked={!!agent.allowFeed}
+        onChange={(e) => setAgent({ ...agent, allowFeed: e.target.checked })}
+      />
+      <span>
+        optional: people can post chats with my agent to the public feed (each post is filtered, and the admin
+        takes down anything reported). untick to keep my chats private.
+      </span>
+    </label>
+  );
+
   return (
     <section>
       <h2>claim your agent ✓</h2>
@@ -200,7 +215,7 @@ export default function ClaimFlow({ onDone }: { onDone: () => void }) {
             onSave={publish}
             title={step === "manage" ? "edit your agent" : "your agent"}
             saveLabel={busy ? "saving…" : step === "manage" ? "save changes" : "approve & go live ✓"}
-            footer={consentBox}
+            footer={<>{feedBox}{consentBox}</>}
           />
           {hadDraft && step === "build" && (
             <button className="btn danger wide" disabled={busy} onClick={decline}>

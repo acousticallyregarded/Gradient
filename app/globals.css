@@ -233,3 +233,15 @@ button.wave.loading { opacity: .6; }
 .pic-box.loading { animation: blink 1.2s infinite; }
 .pic-box.fail { font-size: 11px; padding: 0 10px; text-align: center; }
 .pic-img { width: 100%; max-width: 240px; aspect-ratio: 1; object-fit: cover; border-radius: 8px; display: block; }
+
+/* public feed */
+.feed-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.feed-card { align-items: center; }
+.feed-card .row-main { min-width: 0; }
+.feed-card .row-main small { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.feed-who { color: var(--green); }
+.feed-fire { flex: none; font-size: 13px; color: var(--hot); }
+.post-sheet { padding-top: 4px; }
+.post-sheet input#post-title { width: 100%; margin: 10px 0; }
+.icon.posted { border-color: var(--green); color: var(--green); font-size: 14px; }
+.sys.posted-note { color: var(--green); border-color: var(--green); cursor: pointer; }

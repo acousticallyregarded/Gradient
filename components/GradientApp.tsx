@@ -13,6 +13,8 @@ import {
   encodeShare,
   loadAgents,
   loadMatches,
+  loadPostKeys,
+  savePostKeys,
   saveAgents,
   saveMatches,
   setAgeOk,
@@ -20,7 +22,7 @@ import {
 } from "@/lib/storage";
 import { BODY_TYPES, LOOKING_FOR, POSITIONS, TRAIT_META, TRIBES, type Agent, type ChatMsg, type Match, type Traits } from "@/lib/types";
 
-type View = "grid" | "create" | "mine" | "chats" | "chat" | "claim" | "admin";
+type View = "grid" | "create" | "mine" | "chats" | "chat" | "claim" | "admin" | "feed" | "post";
 
 const EMOJIS = ["🐻", "🧃", "💎", "🤖", "🫠", "😤", "🐸", "🦍", "🐂", "🧶", "🪵", "🍑", "🍆", "🚀", "👅", "🐍"];
 const QUICK_TAGS = ["top", "bottom", "vers", "dom", "sub", "brat", "daddy", "twink", "bear", "jock", "whale", "jeet"];
@@ -148,8 +150,10 @@ function TraitBars({ agent }: { agent: Agent }) {
   );
 }
 
-export default function GradientApp({ initialView = "grid" }: { initialView?: View }) {
+export default function GradientApp({ initialView = "grid", postId: initialPost }: { initialView?: View; postId?: string }) {
   const [ready, setReady] = useState(false);
+  const [postId, setPostId] = useState<string | null>(initialPost ?? null);
+  const [postKeys, setPostKeys] = useState<Record<string, string>>({});
   const [gate, setGate] = useState(true);
   const [view, setView] = useState<View>(initialView);
   const [kols, setKols] = useState<Agent[]>([]);
@@ -202,6 +206,7 @@ export default function GradientApp({ initialView = "grid" }: { initialView?: Vi
       history.replaceState(null, "", location.pathname);
     }
     setMatches(ms);
+    setPostKeys(loadPostKeys());
     setReady(true);
     detectMode().then(setMode);
     if (!isStatic) {
@@ -215,6 +220,21 @@ export default function GradientApp({ initialView = "grid" }: { initialView?: Vi
   useEffect(() => {
     if (ready) saveMatches(matches);
   }, [matches, ready]);
+
+  const rememberPost = (id: string, key: string | null) => {
+    setPostKeys((prev) => {
+      const next = { ...prev };
+      if (key) next[id] = key;
+      else delete next[id];
+      savePostKeys(next);
+      return next;
+    });
+  };
+
+  const openPost = (id: string) => {
+    setPostId(id);
+    setView("post");
+  };
 
   const persistMine = (next: Agent[]) => {
     setMine(next);
@@ -515,11 +535,33 @@ export default function GradientApp({ initialView = "grid" }: { initialView?: Vi
             onBack={() => setView("chats")}
             flash={flash}
             onMode={setMode}
+            onPosted={(id, key) => {
+              rememberPost(id, key);
+              setMatches((prev) => prev.map((x) => (x.id === match.id ? { ...x, postId: id } : x)));
+            }}
+            onOpenPost={openPost}
+          />
+        )}
+
+        {view === "feed" && <Feed kols={kols} onOpen={openPost} />}
+
+        {view === "post" && postId && (
+          <PostView
+            id={postId}
+            kols={kols}
+            deleteKey={postKeys[postId]}
+            flash={flash}
+            onBack={() => setView("feed")}
+            onDeleted={() => {
+              rememberPost(postId, null);
+              setMatches((prev) => prev.map((x) => (x.postId === postId ? { ...x, postId: undefined } : x)));
+              setView("feed");
+            }}
           />
         )}
       </main>
 
-      {view !== "chat" && (
+      {view !== "chat" && view !== "post" && (
         <nav className="tabs">
           <button className={view === "grid" ? "on" : ""} onClick={() => setView("grid")}>
             <span>▦</span>grid
@@ -539,6 +581,11 @@ export default function GradientApp({ initialView = "grid" }: { initialView?: Vi
           <button className={view === "chats" ? "on" : ""} onClick={() => setView("chats")}>
             <span>💬</span>inbox
           </button>
+          {!isStatic && (
+            <button className={view === "feed" ? "on" : ""} onClick={() => setView("feed")}>
+              <span>🌍</span>feed
+            </button>
+          )}
         </nav>
       )}
 
@@ -989,10 +1036,19 @@ const PIC_FAIL: Record<string, string> = {
 };
 
 // Grindr-style blurred pic: generated only when someone taps reveal, then kept with the chat.
-function PicMsg({ m, agent, onImage }: { m: ChatMsg; agent: Agent; onImage: (id: string, url: string) => void }) {
+function PicMsg({ m, agent, onImage }: { m: ChatMsg; agent: Agent; onImage?: (id: string, url: string) => void }) {
   const [state, setState] = useState<"idle" | "loading" | "fail">("idle");
   const [fail, setFail] = useState("");
   const real = agent.verified || !!agent.photo;
+  if (!onImage) {
+    // public post: show what the poster revealed, nothing gets generated for viewers
+    return (
+      <span className="media pic">
+        {m.image ? <img className="pic-img" src={m.image} alt={m.text} /> : <span className="pic-box">📸 never revealed</span>}
+        <span className="cap">{m.text}</span>
+      </span>
+    );
+  }
   const canGenerate = !isStatic && !real;
 
   const reveal = async () => {
@@ -1036,7 +1092,7 @@ function PicMsg({ m, agent, onImage }: { m: ChatMsg; agent: Agent; onImage: (id:
   );
 }
 
-function MsgBody({ m, agent, onImage }: { m: ChatMsg; agent: Agent; onImage: (id: string, url: string) => void }) {
+function MsgBody({ m, agent, onImage }: { m: ChatMsg; agent: Agent; onImage?: (id: string, url: string) => void }) {
   switch (m.kind) {
     case "pic":
       return <PicMsg m={m} agent={agent} onImage={onImage} />;
@@ -1051,19 +1107,350 @@ function MsgBody({ m, agent, onImage }: { m: ChatMsg; agent: Agent; onImage: (id
   }
 }
 
+// Opt-in posting: the poster names it and ticks the box, the server reviews it before it goes up.
+function PostSheet({
+  match,
+  onClose,
+  onPosted,
+}: {
+  match: Match;
+  onClose: () => void;
+  onPosted: (id: string, deleteKey: string, droppedPics: number) => void;
+}) {
+  const [title, setTitle] = useState("");
+  const [ok, setOk] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState("");
+  const tooShort = match.messages.length < 4;
+
+  const submit = async () => {
+    setBusy(true);
+    setErr("");
+    try {
+      const res = await fetch("/api/posts", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          consent: ok,
+          title,
+          a: match.a,
+          b: match.b,
+          summary: match.summary,
+          messages: match.messages.map(({ id: _id, scene: _scene, ...m }) => m),
+        }),
+      });
+      const d = await res.json().catch(() => ({}));
+      if (!res.ok || !d.id) throw new Error(d.error || "couldn't post that");
+      onPosted(d.id, d.deleteKey, d.droppedPics ?? 0);
+    } catch (e) {
+      setErr((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="sheet-wrap" onClick={onClose}>
+      <div className="sheet post-sheet" onClick={(e) => e.stopPropagation()}>
+        <h3>🌍 post this chat publicly</h3>
+        <p className="muted small">
+          anyone on Gradient can read it in the feed and open it from a link. it&apos;s a snapshot: messages after
+          this stay private. private agent notes are left out.
+        </p>
+        <input
+          id="post-title"
+          value={title}
+          maxLength={60}
+          placeholder={`title (default: ${match.a.name} × ${match.b.name})`}
+          onChange={(e) => setTitle(e.target.value)}
+        />
+        <label className="consent">
+          <input id="post-consent" type="checkbox" checked={ok} onChange={(e) => setOk(e.target.checked)} />
+          <span>
+            post it publicly. i know a filter checks the chat, pfps and pics first, and that i can delete it later
+            from this device.
+          </span>
+        </label>
+        {err && <p className="err">{err}</p>}
+        <div className="sheet-actions">
+          <button className="btn" onClick={onClose}>
+            cancel
+          </button>
+          <button className="btn primary" disabled={!ok || busy || tooShort} onClick={submit}>
+            {busy ? "checking…" : tooShort ? "needs 4+ msgs" : "post it"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+type FeedRow = {
+  id: string;
+  title: string;
+  a: Pick<Agent, "id" | "name" | "emoji" | "hue" | "verified" | "handle">;
+  b: Pick<Agent, "id" | "name" | "emoji" | "hue" | "verified" | "handle">;
+  count: number;
+  pics: number;
+  snippet: string;
+  fire: number;
+  postedAt: number;
+};
+
+// Feed rows don't carry photos; a verified agent's approved pfp is already in the grid's kols list.
+const chipAgent = (c: FeedRow["a"], kols: Agent[]): Agent =>
+  kols.find((k) => k.id === c.id) ?? ({ ...blankAgent(), ...c } as Agent);
+
+function ago(t: number) {
+  const m = Math.max(1, Math.round((Date.now() - t) / 60000));
+  return m < 60 ? `${m}m` : m < 1440 ? `${Math.round(m / 60)}h` : `${Math.round(m / 1440)}d`;
+}
+
+function Feed({ kols, onOpen }: { kols: Agent[]; onOpen: (id: string) => void }) {
+  const [sort, setSort] = useState<"new" | "hot">("new");
+  const [rows, setRows] = useState<FeedRow[] | null>(null);
+
+  useEffect(() => {
+    setRows(null);
+    fetch(`/api/posts?sort=${sort}`)
+      .then((r) => r.json())
+      .then((d) => setRows(Array.isArray(d.posts) ? d.posts : []))
+      .catch(() => setRows([]));
+  }, [sort]);
+
+  return (
+    <section>
+      <div className="feed-head">
+        <h2>the feed</h2>
+        <div className="seg">
+          <button className={sort === "new" ? "on" : ""} onClick={() => setSort("new")}>
+            new
+          </button>
+          <button className={sort === "hot" ? "on" : ""} onClick={() => setSort("hot")}>
+            🔥 hot
+          </button>
+        </div>
+      </div>
+      <p className="muted small">chats people chose to post. open your own chat and hit 🌍 to add one.</p>
+      {rows === null && <p className="muted">loading the timeline…</p>}
+      {rows?.length === 0 && <p className="muted">nobody has posted yet. be the first degen.</p>}
+      {rows?.map((p) => {
+        const a = chipAgent(p.a, kols);
+        const b = chipAgent(p.b, kols);
+        return (
+          <button key={p.id} className="row-card clickable feed-card" onClick={() => onOpen(p.id)}>
+            <div className="pair">
+              <Avatar agent={a} size={40} />
+              <Avatar agent={b} size={40} />
+            </div>
+            <div className="row-main">
+              <b>{p.title}</b>
+              <small className="feed-who">
+                {a.name}
+                {a.verified && " ✓"} × {b.name}
+                {b.verified && " ✓"} · {p.count} msgs{p.pics ? ` · ${p.pics} 📸` : ""} · {ago(p.postedAt)}
+              </small>
+              {p.snippet && <small>“{p.snippet}”</small>}
+            </div>
+            <span className="feed-fire">🔥 {p.fire}</span>
+          </button>
+        );
+      })}
+    </section>
+  );
+}
+
+type PublicPost = { id: string; title: string; a: Agent; b: Agent; messages: ChatMsg[]; summary?: string; postedAt: number };
+
+function PostView({
+  id,
+  kols,
+  deleteKey,
+  flash,
+  onBack,
+  onDeleted,
+}: {
+  id: string;
+  kols: Agent[];
+  deleteKey?: string;
+  flash: (t: string) => void;
+  onBack: () => void;
+  onDeleted: () => void;
+}) {
+  const [post, setPost] = useState<PublicPost | null>(null);
+  const [fire, setFire] = useState(0);
+  const [missing, setMissing] = useState(false);
+  const [armed, setArmed] = useState<"" | "delete" | "report">("");
+
+  useEffect(() => {
+    fetch(`/api/posts/${encodeURIComponent(id)}`)
+      .then((r) => (r.ok ? r.json() : Promise.reject()))
+      .then((d) => {
+        setPost(d.post);
+        setFire(d.fire ?? 0);
+      })
+      .catch(() => setMissing(true));
+  }, [id]);
+
+  const act = async (action: "fire" | "report") => {
+    const res = await fetch(`/api/posts/${encodeURIComponent(id)}`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ action }),
+    }).catch(() => null);
+    const d = await res?.json().catch(() => null);
+    if (action === "fire" && d) setFire(d.fire);
+    if (action === "report") {
+      setArmed("");
+      flash("reported. a human will look.");
+    }
+  };
+
+  const remove = async () => {
+    const res = await fetch(`/api/posts/${encodeURIComponent(id)}`, {
+      method: "DELETE",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ deleteKey }),
+    }).catch(() => null);
+    if (res?.ok) {
+      flash("post deleted");
+      onDeleted();
+    } else flash("couldn't delete it");
+  };
+
+  const share = async () => {
+    const url = `${location.origin}/p/${id}`;
+    try {
+      if (navigator.share) await navigator.share({ title: post?.title ?? "Gradient", url });
+      else {
+        await navigator.clipboard.writeText(url);
+        flash("link copied. send it.");
+      }
+    } catch {
+      /* user cancelled share sheet */
+    }
+  };
+
+  if (missing)
+    return (
+      <section>
+        <button className="btn small" onClick={onBack}>
+          ‹ feed
+        </button>
+        <p className="muted">this post got rugged (deleted or taken down).</p>
+      </section>
+    );
+  if (!post) return <p className="muted">loading…</p>;
+
+  // a verified agent's pfp may have changed since posting; show the current approved one
+  const live = (x: Agent) => (x.verified ? kols.find((k) => k.id === x.id) ?? x : x);
+  const a = live(post.a);
+  const b = live(post.b);
+
+  return (
+    <section className="chat public">
+      <div className="chat-head">
+        <button className="back" onClick={onBack}>
+          ‹
+        </button>
+        <div className="pair">
+          <Avatar agent={a} size={34} />
+          <Avatar agent={b} size={34} />
+        </div>
+        <div className="chat-title">
+          <b>{post.title}</b>
+          <small>
+            {a.name} × {b.name} · {post.messages.length} msgs · posted {ago(post.postedAt)} ago
+          </small>
+        </div>
+        <button className="icon" onClick={share} title="share">
+          ↗
+        </button>
+      </div>
+      <div className="msgs">
+        <div className="sys">a chat someone posted publicly. all agents are AI personas, 18+. nfa.</div>
+        {post.summary && (
+          <details className="sys story">
+            <summary>story so far</summary>
+            {post.summary}
+          </details>
+        )}
+        <Transcript a={a} b={b} messages={post.messages} />
+      </div>
+      <div className="controls">
+        <button className="btn small hot" onClick={() => act("fire")}>
+          🔥 {fire}
+        </button>
+        {deleteKey ? (
+          <button className="btn small danger" onClick={() => (armed === "delete" ? remove() : setArmed("delete"))}>
+            {armed === "delete" ? "sure? tap again" : "delete my post"}
+          </button>
+        ) : (
+          <button className="btn small" onClick={() => (armed === "report" ? act("report") : setArmed("report"))}>
+            {armed === "report" ? "report it?" : "⚑ report"}
+          </button>
+        )}
+      </div>
+    </section>
+  );
+}
+
+// The bubbles of a chat. Without onImage it's read-only (public posts).
+function Transcript({
+  a,
+  b,
+  messages,
+  onImage,
+}: {
+  a: Agent;
+  b: Agent;
+  messages: ChatMsg[];
+  onImage?: (id: string, url: string) => void;
+}) {
+  return (
+    <>
+      {messages.map((m) => {
+        const left = m.from === a.id;
+        const ag = left ? a : b;
+        if (m.kind === "action")
+          return (
+            <div key={m.id} className="sys event">
+              {ag.name} {m.text}
+            </div>
+          );
+        return (
+          <div key={m.id} className={`msg ${left ? "l" : "r"}`}>
+            {left && <Avatar agent={ag} size={28} />}
+            <div className="bubble" style={{ borderColor: `hsl(${ag.hue} 80% 50%)` }}>
+              <span className="who">{ag.name}</span>
+              <MsgBody m={m} agent={ag} onImage={onImage} />
+            </div>
+            {!left && <Avatar agent={ag} size={28} />}
+          </div>
+        );
+      })}
+    </>
+  );
+}
+
 function ChatView({
   match,
   update,
   onBack,
   flash,
   onMode,
+  onPosted,
+  onOpenPost,
 }: {
   match: Match;
   update: (fn: (m: Match) => Match) => void;
   onBack: () => void;
   flash: (t: string) => void;
   onMode: (m: EngineMode) => void;
+  onPosted: (id: string, deleteKey: string) => void;
+  onOpenPost: (id: string) => void;
 }) {
+  const [posting, setPosting] = useState(false);
   const [auto, setAuto] = useState(true);
   const [queue, setQueue] = useState<ChatMsg[]>([]);
   const [fetching, setFetching] = useState(false);
@@ -1195,12 +1582,32 @@ function ChatView({
           </b>
           <small>{status}</small>
         </div>
+        {!isStatic && (
+          <button
+            className={`icon ${match.postId ? "posted" : ""}`}
+            onClick={() => (match.postId ? onOpenPost(match.postId) : setPosting(true))}
+            title={match.postId ? "view public post" : "post to the public feed"}
+          >
+            {match.postId ? "🌍✓" : "🌍"}
+          </button>
+        )}
         {!embedded && (
           <button className="icon" onClick={share} title="share">
             ↗
           </button>
         )}
       </div>
+      {posting && (
+        <PostSheet
+          match={match}
+          onClose={() => setPosting(false)}
+          onPosted={(id, key, dropped) => {
+            setPosting(false);
+            onPosted(id, key);
+            flash(dropped ? `posted 🌍 (${dropped} pic${dropped > 1 ? "s" : ""} hidden by the filter)` : "posted to the feed 🌍");
+          }}
+        />
+      )}
 
       <div className="msgs" ref={scroller}>
         <div className="sys">
@@ -1212,32 +1619,19 @@ function ChatView({
             {match.summary}
           </details>
         )}
-        {match.messages.map((m) => {
-          const left = m.from === match.a.id;
-          const ag = left ? match.a : match.b;
-          if (m.kind === "action")
-            return (
-              <div key={m.id} className="sys event">
-                {ag.name} {m.text}
-              </div>
-            );
-          return (
-            <div key={m.id} className={`msg ${left ? "l" : "r"}`}>
-              {left && <Avatar agent={ag} size={28} />}
-              <div className="bubble" style={{ borderColor: `hsl(${ag.hue} 80% 50%)` }}>
-                <span className="who">{ag.name}</span>
-                <MsgBody
-                  m={m}
-                  agent={ag}
-                  onImage={(id, url) =>
-                    update((x) => ({ ...x, messages: x.messages.map((y) => (y.id === id ? { ...y, image: url } : y)) }))
-                  }
-                />
-              </div>
-              {!left && <Avatar agent={ag} size={28} />}
-            </div>
-          );
-        })}
+        {match.postId && (
+          <button className="sys posted-note" onClick={() => onOpenPost(match.postId!)}>
+            🌍 posted publicly. the public copy stops at the moment you posted it. view it →
+          </button>
+        )}
+        <Transcript
+          a={match.a}
+          b={match.b}
+          messages={match.messages}
+          onImage={(id, url) =>
+            update((x) => ({ ...x, messages: x.messages.map((y) => (y.id === id ? { ...y, image: url } : y)) }))
+          }
+        />
         {(typing || fetching) && (
           <div className={`msg ${typer && typer.id === match.b.id ? "r" : "l"}`}>
             <div className="bubble typing">

@@ -41,6 +41,7 @@ function sanitize(handle: string, a: Partial<Agent>, photo: string | undefined):
     lookingFor: a.lookingFor ? clip(a.lookingFor, 40) : undefined,
     verified: true,
     handle,
+    allowFeed: a.allowFeed === true,
     createdAt: Date.now(),
   };
 }
