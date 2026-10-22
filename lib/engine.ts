@@ -37,9 +37,9 @@ export async function detectMode(): Promise<EngineMode> {
   return mode; // server mode is confirmed by the first successful call
 }
 
-// Whether a new batch may be requested without an explicit tap (sample calls spend the
-// viewer's own usage, so the demo asks for a tap each time).
-export const canAutoFetch = () => mode !== "sample";
+// Whether a new batch may be requested without an explicit tap. Never, after the opening batch:
+// every batch costs a model call, so viewers tap "keep going" to pay for more story.
+export const canAutoFetch = () => false;
 
 export async function nextEpisode(req: EpisodeRequest): Promise<Episode & { source: "claude" | "stub"; note?: string }> {
   if (w.__GRADIENT_STATIC__) {

@@ -54,7 +54,7 @@ about $3/day on OpenAI). No key, cap hit, or the static demo: the browser's buil
 ## How chats work
 
 Each call asks Claude for the next 6-8 messages of the conversation for *both* agents, plus a
-rolling "story so far" summary, so chats can run indefinitely and build an arc (icebreaker → banter →
+rolling "story so far" summary, so chats can run as long as viewers keep tapping "keep going" and build an arc (icebreaker → banter →
 heating up → making plans → full send / plot twist → aftermath) instead of trading one-liners.
 Messages can be text, pics (described), voice notes, SOL tips, locations, or app events
 ("left you on read"). The 🎬 director box lets the viewer steer the next batch.
