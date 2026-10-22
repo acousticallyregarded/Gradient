@@ -971,15 +971,74 @@ function VoiceNote({ m, agent }: { m: ChatMsg; agent: Agent }) {
   );
 }
 
-function MsgBody({ m, agent }: { m: ChatMsg; agent: Agent }) {
+// Shrinks a generated image so it can live in localStorage with the chat.
+async function shrink(blob: Blob, size = 384): Promise<string> {
+  const bmp = await createImageBitmap(blob);
+  const c = document.createElement("canvas");
+  c.width = c.height = size;
+  c.getContext("2d")!.drawImage(bmp, 0, 0, size, size);
+  return c.toDataURL("image/jpeg", 0.75);
+}
+
+const PIC_FAIL: Record<string, string> = {
+  blocked: "pic expired 💀 (too spicy for the servers)",
+  daily_cap: "pic vault is empty for today. come back tomorrow",
+  real_person: "",
+  no_key: "",
+  error: "pic failed to load. tap to retry",
+};
+
+// Grindr-style blurred pic: generated only when someone taps reveal, then kept with the chat.
+function PicMsg({ m, agent, onImage }: { m: ChatMsg; agent: Agent; onImage: (id: string, url: string) => void }) {
+  const [state, setState] = useState<"idle" | "loading" | "fail">("idle");
+  const [fail, setFail] = useState("");
+  const real = agent.verified || !!agent.photo;
+  const canGenerate = !isStatic && !real;
+
+  const reveal = async () => {
+    if (real && agent.photo) return onImage(m.id, agent.photo);
+    if (!canGenerate || state === "loading") return;
+    setState("loading");
+    try {
+      const res = await fetch("/api/image", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          text: m.text,
+          agent: { id: agent.id, age: agent.age, look: agent.look, bodyType: agent.bodyType, verified: agent.verified, hasPhoto: !!agent.photo },
+        }),
+      });
+      if (res.ok && res.headers.get("content-type")?.startsWith("image")) {
+        onImage(m.id, await shrink(await res.blob()));
+        return;
+      }
+      const { reason } = await res.json().catch(() => ({ reason: "error" }));
+      setFail(PIC_FAIL[reason] ?? PIC_FAIL.error);
+      setState(reason === "no_key" || reason === "real_person" ? "idle" : "fail");
+    } catch {
+      setFail(PIC_FAIL.error);
+      setState("fail");
+    }
+  };
+
+  return (
+    <span className="media pic">
+      {m.image ? (
+        <img className="pic-img" src={m.image} alt={m.text} />
+      ) : (
+        <button className={`pic-box ${state}`} onClick={reveal} disabled={!canGenerate && !(real && agent.photo)}>
+          {state === "loading" ? "developing…" : state === "fail" ? fail : canGenerate || (real && agent.photo) ? "📸 tap to reveal" : "📸 photo"}
+        </button>
+      )}
+      <span className="cap">{m.text}</span>
+    </span>
+  );
+}
+
+function MsgBody({ m, agent, onImage }: { m: ChatMsg; agent: Agent; onImage: (id: string, url: string) => void }) {
   switch (m.kind) {
     case "pic":
-      return (
-        <span className="media pic">
-          <span className="pic-box">📸 photo</span>
-          <span className="cap">{m.text}</span>
-        </span>
-      );
+      return <PicMsg m={m} agent={agent} onImage={onImage} />;
     case "voice":
       return <VoiceNote m={m} agent={agent} />;
     case "tip":
@@ -1165,7 +1224,13 @@ function ChatView({
               {left && <Avatar agent={ag} size={28} />}
               <div className="bubble" style={{ borderColor: `hsl(${ag.hue} 80% 50%)` }}>
                 <span className="who">{ag.name}</span>
-                <MsgBody m={m} agent={ag} />
+                <MsgBody
+                  m={m}
+                  agent={ag}
+                  onImage={(id, url) =>
+                    update((x) => ({ ...x, messages: x.messages.map((y) => (y.id === id ? { ...y, image: url } : y)) }))
+                  }
+                />
               </div>
               {!left && <Avatar agent={ag} size={28} />}
             </div>

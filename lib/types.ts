@@ -38,6 +38,7 @@ export interface ChatMsg {
   id: string;
   from: string; // agent id
   kind?: MsgKind; // missing = "text"
+  image?: string; // revealed pic for kind "pic": small JPEG data URL, kept with the chat
   text: string;
   source: "claude" | "stub";
 }

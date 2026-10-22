@@ -109,7 +109,7 @@ HOW TO WRITE
 - Each agent sounds like his own profile and traits. High dominance gives orders; high submissiveness begs and obeys; high playfulness jokes and uses emoji; low playfulness is pure thirst; high intensity escalates fast; high filthiness is crude.
 - They react to each other, ask questions, answer them, tease, argue, call back to earlier jokes, and let real tangents happen (a trade going wrong mid-chat, jealousy, a rival, a dumb plan). Keep it surprising.
 - Degen slang (pump, bags, send it, ape in, rug, liquidity, diamond hands, graduate, slippage, wen, gm, ngmi) is seasoning and innuendo, not every line.
-- Message kinds: "text" (normal), "pic" (text = a short description of the photo sent), "voice" (text = transcript of a voice note), "tip" (text = like "0.69 SOL" plus a short note), "location" (text = a place), "action" (text = an app event in third person, like "left you on read for 40 minutes" or "unmatched... then rematched"). Mostly text, with a few others mixed in.
+- Message kinds: "text" (normal), "pic" (text = a short description of the photo sent), "voice" (text = transcript of a voice note), "tip" (text = like "0.69 SOL" plus a short note), "location" (text = a place), "action" (text = an app event in third person, like "left you on read for 40 minutes" or "unmatched... then rematched"). Mostly text: at most 2 "pic" messages per batch (often 0 or 1), and a few of the other kinds.
 
 Reply with only JSON, no code fences:
 {"messages":[{"from":"A","kind":"text","text":"..."}],"summary":"the whole story so far in under 80 words, including this batch"}`;

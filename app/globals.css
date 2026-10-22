@@ -190,7 +190,7 @@ input[type=range] { padding: 0; border: 0; background: transparent; accent-color
 .gate-box p { margin: 0 0 6px; line-height: 1.5; font-size: 13px; }
 
 .media { display: flex; flex-direction: column; gap: 6px; }
-.pic-box { display: grid; place-items: center; height: 110px; min-width: 160px; border-radius: 8px; background: repeating-linear-gradient(45deg, #1b1b1b 0 8px, #141414 8px 16px); color: var(--muted); font-family: var(--mono); font-size: 12px; filter: blur(.3px); }
+.pic-box { width: 100%; color: var(--muted); border: 0; cursor: pointer; display: grid; place-items: center; height: 110px; min-width: 160px; border-radius: 8px; background: repeating-linear-gradient(45deg, #1b1b1b 0 8px, #141414 8px 16px); color: var(--muted); font-family: var(--mono); font-size: 12px; filter: blur(.3px); }
 .cap { font-size: 13px; color: #cfcfcf; font-style: italic; }
 .wave { font-family: var(--mono); font-size: 12px; color: var(--green); letter-spacing: 1px; }
 .tip { color: #f5c542; font-weight: 700; }
@@ -228,3 +228,8 @@ input[type=range] { padding: 0; border: 0; background: transparent; accent-color
 button.wave { text-align: left; padding: 6px 10px; border: 1px solid #1f3a2e; border-radius: 99px; background: #0b1a13; }
 button.wave.playing { color: var(--hot); border-color: #4a1a26; background: #1a0b10; }
 button.wave.loading { opacity: .6; }
+
+.pic-box:disabled { cursor: default; }
+.pic-box.loading { animation: blink 1.2s infinite; }
+.pic-box.fail { font-size: 11px; padding: 0 10px; text-align: center; }
+.pic-img { width: 100%; max-width: 240px; aspect-ratio: 1; object-fit: cover; border-radius: 8px; display: block; }
