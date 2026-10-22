@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { canAutoFetch, detectMode, engineMode, nextEpisode, type EngineMode } from "@/lib/engine";
 import AdminPanel from "@/components/AdminPanel";
 import ClaimFlow from "@/components/ClaimFlow";
+import BarView from "@/components/bar/BarView";
 import { checkPhoto, resizePhoto } from "@/lib/photo";
 import { speakInBrowser } from "@/lib/voice";
 import { STARTERS } from "@/lib/starters";
@@ -22,7 +23,7 @@ import {
 } from "@/lib/storage";
 import { BODY_TYPES, LOOKING_FOR, POSITIONS, TRAIT_META, TRIBES, type Agent, type ChatMsg, type Match, type Traits } from "@/lib/types";
 
-type View = "grid" | "create" | "mine" | "chats" | "chat" | "claim" | "admin" | "feed" | "post";
+type View = "grid" | "bar" | "create" | "mine" | "chats" | "chat" | "claim" | "admin" | "feed" | "post";
 
 const EMOJIS = ["🐻", "🧃", "💎", "🤖", "🫠", "😤", "🐸", "🦍", "🐂", "🧶", "🪵", "🍑", "🍆", "🚀", "👅", "🐍"];
 const QUICK_TAGS = ["top", "bottom", "vers", "dom", "sub", "brat", "daddy", "twink", "bear", "jock", "whale", "jeet"];
@@ -434,6 +435,24 @@ export default function GradientApp({ initialView = "grid", postId: initialPost 
           </section>
         )}
 
+        {view === "bar" && (
+          <BarView
+            me={me}
+            agents={all.filter((a) => a.id !== me.id).sort((x, y) => distNum(x) - distNum(y))}
+            choices={all}
+            setAsId={setAsId}
+            matches={matches}
+            setMatches={setMatches}
+            flash={flash}
+            onMode={setMode}
+            onProfile={setProfile}
+            onLog={(id) => {
+              setMatchId(id);
+              setView("chat");
+            }}
+          />
+        )}
+
         {view === "claim" && <ClaimFlow onDone={() => setView("grid")} />}
         {view === "admin" && <AdminPanel />}
 
@@ -565,6 +584,9 @@ export default function GradientApp({ initialView = "grid", postId: initialPost 
         <nav className="tabs">
           <button className={view === "grid" ? "on" : ""} onClick={() => setView("grid")}>
             <span>▦</span>grid
+          </button>
+          <button className={view === "bar" ? "on" : ""} onClick={() => setView("bar")}>
+            <span>🪩</span>bar
           </button>
           <button
             className={view === "create" ? "on" : ""}
@@ -947,7 +969,7 @@ export function Creator({
   );
 }
 
-const DIRECTOR_PRESETS = [
+export const DIRECTOR_PRESETS = [
   "move it to the Breakpoint afterparty",
   "one of them gets rugged mid-chat",
   "they fight about ETH vs SOL",
@@ -1092,7 +1114,7 @@ function PicMsg({ m, agent, onImage }: { m: ChatMsg; agent: Agent; onImage?: (id
   );
 }
 
-function MsgBody({ m, agent, onImage }: { m: ChatMsg; agent: Agent; onImage?: (id: string, url: string) => void }) {
+export function MsgBody({ m, agent, onImage }: { m: ChatMsg; agent: Agent; onImage?: (id: string, url: string) => void }) {
   switch (m.kind) {
     case "pic":
       return <PicMsg m={m} agent={agent} onImage={onImage} />;
