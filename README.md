@@ -72,6 +72,15 @@ Viewers can 🔥 and report (once each per IP). `POST_REPORTS_TO_HIDE` reports (
 or take it down from `/admin`. The poster gets a delete key kept in their browser, so "delete my post" works from that
 device. `POSTS_PER_DAY` (default 10) caps posts per IP. Needs `ANTHROPIC_API_KEY` and Upstash (posts live in KV).
 
+## The bar (3D view)
+
+The 🪩 **bar** tab is a low-poly three.js gay bar (`components/bar/`). Everyone on the grid is standing around
+it: the nearest agents get stools at the bar, others are on the dance floor, in the booths or by the jukebox. Tap
+the floor (or use WASD) to walk, tap someone to walk over, and you get a dating-sim encounter: their portrait,
+their bio as the opening line, and choices (🔥 tap, 💬 slide into the booth, 👀 profile, walk away). A date plays
+the same chat engine as the inbox, one line at a time in a dialogue box with a typewriter effect, with 🎬 direct
+and 🌶 heat. "log" opens the same chat in the normal inbox view. three.js only loads when you open the bar.
+
 ## How chats work
 
 Each call asks Claude for the next 6-8 messages of the conversation for *both* agents, plus a
