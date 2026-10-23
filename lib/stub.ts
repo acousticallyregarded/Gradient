@@ -1,4 +1,5 @@
-import { stageFor, type Episode, type EpisodeMessage } from "./prompt";
+import { stageFor, type Episode, type EpisodeMessage, type EpisodeRequest } from "./prompt";
+import type { Slot } from "./drama";
 import type { Agent, ChatMsg, MsgKind } from "./types";
 
 // Offline dirty-talk engine. Used when no ANTHROPIC_API_KEY is set, when the API call fails,
@@ -177,7 +178,7 @@ export function stubReply(
 }
 
 // Non-text "media" so offline chats feel like a real app, not a string of one-liners.
-const MEDIA: Record<Exclude<MsgKind, "text">, string[][]> = {
+const MEDIA: Record<Exclude<MsgKind, "text" | "rug" | "reveal">, string[][]> = {
   pic: [
     ["mirror selfie, ring light, ledger hanging off a chain", "screenshot of his phantom wallet. very green.", "gym pic, pump in progress"],
     ["shirtless, laptop open to dexscreener in the background", "grey sweatpants. that's it. that's the pic.", "bed pic. sheets say 'WAGMI'."],
@@ -201,27 +202,82 @@ const MEDIA: Record<Exclude<MsgKind, "text">, string[][]> = {
 };
 
 function mediaMsg(stage: number): { kind: MsgKind; text: string } {
-  const kinds: Exclude<MsgKind, "text">[] = ["pic", "pic", "voice", "tip", "location", "action"];
+  const kinds: Exclude<MsgKind, "text" | "rug" | "reveal">[] = ["pic", "pic", "voice", "tip", "location", "action"];
   const kind = pick(kinds);
   return { kind, text: pick(MEDIA[kind][Math.min(stage, MEDIA[kind].length - 1)]) };
 }
 
-// Offline stand-in for the Claude episode: the next 6-8 messages, alternating speakers.
-export function stubEpisode(a: Agent, b: Agent, history: ChatMsg[], heat: number, director?: string): Episode {
+// Twist lines for the offline engine. {them} is the partner (or the ex, for the monologue).
+const RUG_LINES = [
+  "ok this is getting too real for me. pulling liquidity. gn",
+  "i just realised i have commitment issues and a 3am flight. bye {them}",
+  "sorry i don't hold anything longer than 4 minutes. that includes you",
+  "this was fun but i'm rotating into a different narrative",
+];
+const MONOLOGUE = [
+  { kind: "text" as MsgKind, text: "{them}?? hello??" },
+  { kind: "action" as MsgKind, text: "checked if he got unmatched. 4 times." },
+  { kind: "text" as MsgKind, text: "it's fine. i'm fine. i've been rugged by better devs than you" },
+  { kind: "voice" as MsgKind, text: "*sniffs* hey. it's me. i just think we had something. a real community. *long pause* ok bye" },
+  { kind: "action" as MsgKind, text: "typed for 4 minutes, sent nothing" },
+  { kind: "text" as MsgKind, text: "for the record i'm still holding. diamond hands. even for this. even for you." },
+  { kind: "text" as MsgKind, text: "starting a recovery chat. it's just me and my ledger. we're doing great" },
+  { kind: "action" as MsgKind, text: "renamed his wallet 'never again (again)'" },
+];
+const REVEAL_LINES = [
+  "ok i have to tell you something. i'm not one guy. i'm a bot farm. 47 wallets. you've been flirting with my whole cluster.",
+  "{them}... i'm a fed. this whole chat is going in a report. but also i meant every word.",
+  "i need to come clean. it's me. your ex. i made a burner because you blocked my main.",
+  "the coin that rugged you in march? that was my dev wallet. i'm so sorry. also hi.",
+];
+const REACTIONS = ["WHAT", "i need to sit down", "...honestly that's kind of hot", "unmatch. rematch. unmatch.", "so that's why you never showed your face"];
+const CUTIN = ["walked up to the booth and pulled up a stool", "slid into the group chat uninvited"];
+
+const fill = (t: string, them: Agent, me: Agent) => t.replaceAll("{them}", them.name).replaceAll("{me}", me.name);
+
+// Offline stand-in for the Claude episode: the next 6-8 messages, alternating speakers (all three in
+// threesome mode), honouring the batch's twist.
+export function stubEpisode({ a, b, c, history, heat, director, twist }: EpisodeRequest): Episode {
+  const slots: Slot[] = c ? ["A", "B", "C"] : ["A", "B"];
+  const at = (s: Slot) => (s === "A" ? a : s === "C" && c ? c : b);
   const out: EpisodeMessage[] = [];
+  const pump = () => Math.round(Math.random() * 4 - 1.2);
+
+  if (twist?.kind === "monologue") {
+    const me = at(twist.by);
+    const ex = twist.by === "A" ? b : a;
+    const lines = [...MONOLOGUE].sort(() => Math.random() - 0.5).slice(0, 5);
+    return { messages: lines.map((l) => ({ from: twist.by, kind: l.kind, text: fill(l.text, ex, me), pump: -1 - (Math.random() < 0.5 ? 1 : 0) })), summary: "" };
+  }
+
   const hist = [...history];
-  const count = history.length === 0 ? 6 : 8;
-  for (let i = 0; i < count; i++) {
-    const speakerIsA = hist.length % 2 === 0;
-    const sp = speakerIsA ? a : b;
-    const other = speakerIsA ? b : a;
+  const count = twist?.kind === "rug" ? 5 : history.length === 0 ? 6 : 8;
+  if (twist?.kind === "cutin" && c) {
+    out.push({ from: "C", kind: "action", text: pick(CUTIN), pump: 2 });
+    hist.push({ id: "c", from: c.id, kind: "action", text: out[0].text, source: "stub" });
+  }
+  for (let i = out.length; i < count; i++) {
+    const s = slots[hist.length % slots.length];
+    const sp = at(s);
+    const other = at(slots[(hist.length + 1) % slots.length]);
     const stage = stageFor(sp, hist.length, heat);
     let msg: { kind: MsgKind; text: string };
     if (i === 0 && director) msg = { kind: "text", text: `ok new plan: ${director.toLowerCase()}. you in?` };
     else if (hist.length > 1 && Math.random() < 0.18) msg = mediaMsg(stage);
     else msg = { kind: "text", text: stubReply(sp, other, hist, stage) };
-    out.push({ from: speakerIsA ? "A" : "B", ...msg });
+    out.push({ from: s, ...msg, pump: pump() });
     hist.push({ id: String(i), from: sp.id, kind: msg.kind, text: msg.text, source: "stub" });
+  }
+
+  if (twist?.kind === "rug") {
+    const me = at(twist.by);
+    const them = twist.by === "A" ? b : a;
+    out.push({ from: twist.by, kind: "rug", text: fill(pick(RUG_LINES), them, me), pump: -3 });
+  } else if (twist?.kind === "reveal") {
+    const me = at(twist.by);
+    const them = twist.by === "A" ? b : a;
+    const other: Slot = twist.by === "A" ? "B" : "A";
+    out.splice(-2, 2, { from: twist.by, kind: "reveal", text: fill(pick(REVEAL_LINES), them, me), pump: Math.random() < 0.5 ? -3 : 2 }, { from: other, kind: "text", text: pick(REACTIONS), pump: 0 });
   }
   return { messages: out, summary: "" };
 }

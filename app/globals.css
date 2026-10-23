@@ -310,3 +310,61 @@ button.wave.loading { opacity: .6; }
 .wallet-btn { display: flex; align-items: center; justify-content: center; gap: 8px; }
 .wallet-btn span { font-size: 18px; }
 .signin .err { color: var(--hot); }
+
+/* ---------- degen drama: chart, rugs, reveals, threesomes, gossip ---------- */
+.chart { display: flex; align-items: center; gap: 8px; padding: 6px 12px; border-bottom: 1px solid var(--line); font-family: var(--mono); font-size: 11px; background: #070707; }
+.chart polyline { stroke: var(--green); }
+.chart.down polyline { stroke: var(--hot); }
+.chart-ticker { color: var(--purple); font-size: 11px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; flex: 1; }
+.chart-mcap { display: flex; flex-direction: column; align-items: flex-end; font-weight: 700; color: var(--green); white-space: nowrap; }
+.chart.down .chart-mcap { color: var(--hot); }
+.chart-mcap small { font-size: 9px; font-weight: 600; opacity: .8; }
+.chart.compact { padding: 0; border: 0; background: transparent; gap: 4px; flex: none; }
+.row-card > .chart.compact { margin-left: auto; align-self: center; }
+.vn-top .chart.compact { background: rgba(0,0,0,.6); padding: 3px 6px; border-radius: 8px; }
+
+.trending { display: flex; flex-direction: column; gap: 4px; margin-bottom: 14px; padding: 10px; border: 1px solid var(--line); border-radius: 10px; background: var(--panel); }
+.trending > small { color: var(--muted); margin-bottom: 2px; }
+.trend-row { display: flex; align-items: center; gap: 8px; padding: 4px 0; text-align: left; font-family: var(--mono); font-size: 12px; }
+.trend-rank { color: var(--muted); width: 22px; flex: none; }
+.trend-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--purple); }
+.feed-mcap { color: var(--green); font-family: var(--mono); }
+
+.rug-msg, .reveal-msg { gap: 4px; }
+.rug-tag, .reveal-tag { font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: .5px; }
+.rug-tag { color: var(--hot); }
+.reveal-tag { color: #ffb02e; }
+.sys.rugged { display: flex; flex-direction: column; align-items: center; gap: 8px; color: var(--hot); border-color: var(--hot); }
+.drama-row { display: flex; gap: 6px; overflow-x: auto; scrollbar-width: none; margin: 0 0 8px; }
+.drama-row .chip { white-space: nowrap; flex-shrink: 0; }
+.drama-row .chip:disabled { opacity: .4; }
+
+.fx { position: fixed; inset: 0; z-index: 30; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; padding: 24px; text-align: center; cursor: pointer; animation: fxin .25s ease-out; }
+.fx h1 { margin: 0; font-size: clamp(26px, 8vw, 40px); letter-spacing: 1px; }
+.fx p { margin: 0; color: #ddd; line-height: 1.5; }
+.fx.rug { background: radial-gradient(circle, rgba(80,0,20,.92), rgba(0,0,0,.96)); }
+.fx.rug h1 { color: var(--hot); animation: shake .4s 3; }
+.fx-candle { width: 18px; height: 160px; background: var(--hot); border-radius: 3px; transform-origin: top; animation: dump 1.1s cubic-bezier(.6,0,.9,.4) forwards; box-shadow: 0 0 30px var(--hot); }
+.fx.reveal { background: repeating-linear-gradient(45deg, rgba(40,26,0,.94) 0 18px, rgba(0,0,0,.95) 18px 36px); }
+.fx.reveal h1 { color: #ffb02e; animation: siren .5s steps(2) 6; }
+@keyframes fxin { from { opacity: 0; } }
+@keyframes dump { from { transform: scaleY(.05); } to { transform: scaleY(1); } }
+@keyframes shake { 25% { transform: translateX(-6px); } 75% { transform: translateX(6px); } }
+@keyframes siren { 50% { color: var(--hot); } }
+
+.third-sheet .third-list { display: flex; flex-direction: column; gap: 6px; max-height: 55vh; overflow-y: auto; margin-top: 10px; }
+.third-sheet .row-main small { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.vn-portraits.three .vn-portrait { width: 30%; }
+.vn-portraits.three .vn-portrait-img span { font-size: clamp(48px, 14vw, 76px); }
+
+.gossip { display: flex; flex-direction: column; gap: 10px; margin-top: 10px; }
+.gossip-date { color: var(--purple); font-family: var(--mono); }
+.gossip h3 { margin: 0; font-size: 22px; line-height: 1.2; }
+.gossip-intro { margin: 0; color: #cfcfcf; font-style: italic; line-height: 1.5; }
+.gossip-item { display: flex; flex-direction: column; gap: 4px; text-align: left; padding: 12px; border: 1px solid var(--line); border-radius: 10px; background: var(--panel); }
+.gossip-item b { color: var(--hot); }
+.gossip-item span { line-height: 1.5; font-size: 13px; }
+.gossip-item small { color: var(--green); font-size: 11px; }
+.gossip-blind { margin: 0; padding: 10px 12px; border-left: 3px solid #ffb02e; font-size: 13px; line-height: 1.5; }
+.gossip-blind b { color: #ffb02e; }
+.vn-top .chart.compact svg { display: none; }

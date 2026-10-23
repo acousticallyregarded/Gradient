@@ -1,4 +1,4 @@
-import { buildEpisodePrompt, normalizeEpisode, type Episode, type EpisodeRequest } from "./prompt";
+import { buildEpisodePrompt, enforceTwist, normalizeEpisode, type Episode, type EpisodeRequest } from "./prompt";
 import { stubEpisode } from "./stub";
 
 // Three ways to get the next stretch of chat, tried in order:
@@ -47,10 +47,10 @@ export async function nextEpisode(req: EpisodeRequest): Promise<Episode & { sour
     if (sample) {
       try {
         const raw = await sample.json(buildEpisodePrompt(req), { cache: false, modelTier: "default" });
-        const ep = normalizeEpisode(raw);
+        const ep = normalizeEpisode(raw, !!req.c);
         if (ep) {
           mode = "sample";
-          return { ...ep, source: "claude" };
+          return { ...enforceTwist(ep, req.twist), source: "claude" };
         }
       } catch (e) {
         const code = (e as { code?: string }).code;
@@ -59,7 +59,7 @@ export async function nextEpisode(req: EpisodeRequest): Promise<Episode & { sour
           mode = "stub";
         }
         await pause(400);
-        return { ...stubEpisode(req.a, req.b, req.history, req.heat, req.director), source: "stub", note: code };
+        return { ...stubEpisode(req), source: "stub", note: code };
       }
     }
   } else if (mode !== "stub") {
@@ -81,7 +81,7 @@ export async function nextEpisode(req: EpisodeRequest): Promise<Episode & { sour
   }
   if (mode === "unknown") mode = "stub";
   await pause(400);
-  return { ...stubEpisode(req.a, req.b, req.history, req.heat, req.director), source: "stub" };
+  return { ...stubEpisode(req), source: "stub" };
 }
 
 const pause = (ms: number) => new Promise((r) => setTimeout(r, ms));

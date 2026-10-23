@@ -6,6 +6,8 @@ import { STARTERS } from "@/lib/starters";
 import { uid } from "@/lib/storage";
 import type { Agent, ChatMsg, Match } from "@/lib/types";
 import { Avatar, DIRECTOR_PRESETS, MsgBody } from "@/components/GradientApp";
+import { Chart, DramaFx } from "@/components/Drama";
+import { agentOf, relaunch } from "@/lib/drama";
 import { useEpisodes } from "./useEpisodes";
 import type { BarWorld } from "./world";
 
@@ -216,6 +218,7 @@ export default function BarView({
         <DateScene
           key={match.id}
           match={match}
+          crowd={agents}
           update={(fn) => setMatches((prev) => prev.map((x) => (x.id === match.id ? fn(x) : x)))}
           flash={flash}
           onMode={onMode}
@@ -268,6 +271,7 @@ function Typed({ text, done, onDone }: { text: string; done?: boolean; onDone?: 
 
 function DateScene({
   match,
+  crowd,
   update,
   flash,
   onMode,
@@ -275,13 +279,14 @@ function DateScene({
   onLog,
 }: {
   match: Match;
+  crowd: Agent[];
   update: (fn: (m: Match) => Match) => void;
   flash: (t: string) => void;
   onMode: (m: EngineMode) => void;
   onLeave: () => void;
   onLog: () => void;
 }) {
-  const { queue, fetching, fetchMore, release, direct, reset } = useEpisodes(match, update, flash, onMode);
+  const { queue, fetching, fetchMore, release, direct, twist, cutIn, reset, fx, clearFx } = useEpisodes(match, update, flash, onMode);
   const [auto, setAuto] = useState(false);
   const [lineDone, setLineDone] = useState(false);
   const [skip, setSkip] = useState(false);
@@ -289,8 +294,11 @@ function DateScene({
   const [note, setNote] = useState("");
 
   const cur: ChatMsg | undefined = match.messages.at(-1);
-  const speaker = cur ? (cur.from === match.a.id ? match.a : match.b) : null;
+  const speaker = cur ? agentOf(match, cur.from) : null;
   const typed = !cur || !cur.kind || cur.kind === "text" || cur.kind === "action";
+  const dead = !!match.rug?.mourned;
+  const patrons = crowd.filter((x) => x.id !== match.a.id && x.id !== match.b.id);
+  const randomPatron = () => patrons[Math.floor(Math.random() * patrons.length)];
   const line = cur ? (cur.kind === "action" ? `*${speaker?.name} ${cur.text}*` : cur.text) : "";
 
   useEffect(() => {
@@ -300,19 +308,27 @@ function DateScene({
 
   // auto-advance a beat after each line finishes
   useEffect(() => {
-    if (!auto || !lineDone || !queue.length) return;
+    if (!auto || !lineDone || !queue.length || fx) return;
     const t = setTimeout(release, 1300 + Math.min(1500, line.length * 12));
     return () => clearTimeout(t);
   }, [auto, lineDone, queue.length, release, line.length]);
 
+  // Asking for more story: now and then, after a while, a bar patron cuts in uninvited.
+  const more = () => {
+    if (dead) return;
+    if (!match.third && !match.rug && match.messages.length >= 10 && patrons.length && Math.random() < 0.15) return cutIn(randomPatron());
+    fetchMore();
+  };
+
   const advance = () => {
     if (cur && typed && !lineDone) return setSkip(true);
     if (queue.length) release();
-    else if (!fetching) fetchMore();
+    else if (!fetching) more();
   };
 
   const heatLabel = ["warm", "hot", "feral", "nuclear"][Math.min(3, Math.floor(match.heat))];
-  const waiting = !queue.length && !fetching && match.messages.length > 0 && lineDone;
+  const waiting = !dead && !queue.length && !fetching && match.messages.length > 0 && lineDone;
+  const cast = [match.a, match.b, match.third].filter((x): x is Agent => !!x);
 
   return (
     <div className="vn date">
@@ -321,11 +337,10 @@ function DateScene({
           ‹ leave
         </button>
         <span className="vn-heat">
-          <b>
-            {match.a.name} × {match.b.name}
-          </b>
-          {match.messages.length} lines · heat: {heatLabel}
+          <b>{cast.map((x) => x.name).join(" × ")}</b>
+          {match.messages.length} lines · {dead ? "rugged 🪦" : `heat: ${heatLabel}`}
         </span>
+        <Chart match={match} compact />
         <button className="btn small" onClick={onLog} title="open the full chat log">
           log
         </button>
@@ -334,9 +349,12 @@ function DateScene({
         </button>
       </div>
 
-      <div className="vn-portraits">
-        <Portrait agent={match.a} dim={speaker?.id !== match.a.id} speaking={speaker?.id === match.a.id} />
-        <Portrait agent={match.b} dim={speaker?.id !== match.b.id} speaking={speaker?.id === match.b.id} />
+      {fx && <DramaFx msg={fx} agent={agentOf(match, fx.from)} onDone={clearFx} />}
+
+      <div className={`vn-portraits ${match.third ? "three" : ""}`}>
+        {cast.map((x) => (
+          <Portrait key={x.id} agent={x} dim={speaker?.id !== x.id} speaking={speaker?.id === x.id} />
+        ))}
       </div>
 
       {showDirector && (
@@ -354,6 +372,14 @@ function DateScene({
                 {p}
               </button>
             ))}
+          </div>
+          <div className="drama-row">
+            <button className="chip" disabled={!!match.rug || fetching} onClick={() => { setShowDirector(false); twist("rug"); }}>
+              🪤 rug pull breakup
+            </button>
+            <button className="chip" disabled={!!match.rug || match.revealed || fetching} onClick={() => { setShowDirector(false); twist("reveal"); }}>
+              🕵️ dev wallet reveal
+            </button>
           </div>
           <form
             onSubmit={(e) => {
@@ -407,8 +433,24 @@ function DateScene({
 
       <div className="vn-controls">
         {waiting && (
-          <button className="keep-going" onClick={() => fetchMore()}>
+          <button className="keep-going" onClick={more}>
             keep going ›
+          </button>
+        )}
+        {dead && !queue.length && (
+          <button
+            className="keep-going"
+            onClick={() => {
+              update(relaunch);
+              flash("🚀 v2 is live");
+            }}
+          >
+            🪦 rugged. relaunch v2 🚀
+          </button>
+        )}
+        {!match.third && patrons.length > 0 && !dead && (
+          <button className="btn small" disabled={fetching} onClick={() => cutIn(randomPatron())} title="a bar patron cuts in">
+            🍸 cut in
           </button>
         )}
         <button className={`btn small ${showDirector ? "on" : ""}`} onClick={() => setShowDirector((v) => !v)}>

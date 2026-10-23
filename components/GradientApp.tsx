@@ -23,7 +23,9 @@ import {
   setAgeOk,
   uid,
 } from "@/lib/storage";
-import { BODY_TYPES, LOOKING_FOR, POSITIONS, TRAIT_META, TRIBES, type Agent, type ChatMsg, type Match, type Traits } from "@/lib/types";
+import { BODY_TYPES, LOOKING_FOR, POSITIONS, TRAIT_META, TRIBES, trait, type Agent, type ChatMsg, type Match, type Traits } from "@/lib/types";
+import { agentOf, applyMsg, fmtMcap, planTwist, relaunch, toChatMsgs, type Twist } from "@/lib/drama";
+import { Chart, DramaFx, Gossip, RevealMsg, RugMsg, ThirdPicker, TrendingBoard } from "@/components/Drama";
 
 type View = "grid" | "bar" | "create" | "mine" | "chats" | "chat" | "claim" | "admin" | "feed" | "post";
 
@@ -40,6 +42,7 @@ const blankTraits = (): Traits => ({
   submissiveness: 50,
   playfulness: 50,
   intensity: 50,
+  commitment: 50,
 });
 
 export const blankAgent = (): Agent => ({
@@ -144,9 +147,9 @@ function TraitBars({ agent }: { agent: Agent }) {
         <div key={m.key} className="bar-row">
           <span>{m.label}</span>
           <div className="bar">
-            <div style={{ width: `${agent.traits[m.key]}%` }} />
+            <div style={{ width: `${trait(agent, m.key)}%` }} />
           </div>
-          <b>{agent.traits[m.key]}</b>
+          <b>{trait(agent, m.key)}</b>
         </div>
       ))}
     </div>
@@ -616,6 +619,13 @@ export default function GradientApp({ initialView = "grid", postId: initialPost 
           <section>
             <h2>inbox</h2>
             {matches.length === 0 && <p className="muted">inbox empty. go tap someone.</p>}
+            <TrendingBoard
+              matches={matches}
+              onOpen={(id) => {
+                setMatchId(id);
+                setView("chat");
+              }}
+            />
             {matches.map((m) => (
               <button
                 key={m.id}
@@ -632,9 +642,11 @@ export default function GradientApp({ initialView = "grid", postId: initialPost 
                 <div className="row-main">
                   <b>
                     {m.a.name} × {m.b.name}
+                    {m.third && ` × ${m.third.name}`}
                   </b>
-                  <small>{m.messages.at(-1)?.text ?? "it's a match. nobody's said anything yet."}</small>
+                  <small>{m.rug ? "🪦 rugged" : m.messages.at(-1)?.text ?? "it's a match. nobody's said anything yet."}</small>
                 </div>
+                {m.messages.length > 0 && <Chart match={m} compact />}
               </button>
             ))}
           </section>
@@ -643,6 +655,7 @@ export default function GradientApp({ initialView = "grid", postId: initialPost 
         {view === "chat" && match && (
           <ChatView
             match={match}
+            pool={all}
             update={(fn) => setMatches((prev) => prev.map((x) => (x.id === match.id ? fn(x) : x)))}
             onBack={() => setView("chats")}
             flash={flash}
@@ -1031,13 +1044,13 @@ export function Creator({
           <div key={m.key} className="slider">
             <div className="slider-top">
               <span>{m.label}</span>
-              <b>{draft.traits[m.key]}</b>
+              <b>{trait(draft, m.key)}</b>
             </div>
             <input
               type="range"
               min={0}
               max={100}
-              value={draft.traits[m.key]}
+              value={trait(draft, m.key)}
               onChange={(e) => set("traits", { ...draft.traits, [m.key]: Number(e.target.value) })}
             />
             <div className="slider-ends">
@@ -1230,6 +1243,10 @@ export function MsgBody({ m, agent, onImage }: { m: ChatMsg; agent: Agent; onIma
       return <span className="media tip">💸 sent {m.text}</span>;
     case "location":
       return <span className="media loc">📍 {m.text}</span>;
+    case "rug":
+      return <RugMsg m={m} />;
+    case "reveal":
+      return <RevealMsg m={m} />;
     default:
       return <>{m.text}</>;
   }
@@ -1263,6 +1280,7 @@ function PostSheet({
           title,
           a: match.a,
           b: match.b,
+          c: match.third,
           summary: match.summary,
           messages: match.messages.map(({ id: _id, scene: _scene, ...m }) => m),
         }),
@@ -1289,7 +1307,7 @@ function PostSheet({
           id="post-title"
           value={title}
           maxLength={60}
-          placeholder={`title (default: ${match.a.name} × ${match.b.name})`}
+          placeholder={`title (default: ${[match.a, match.b, match.third].filter(Boolean).map((x) => x!.name).join(" × ")})`}
           onChange={(e) => setTitle(e.target.value)}
         />
         <label className="consent">
@@ -1318,6 +1336,8 @@ type FeedRow = {
   title: string;
   a: Pick<Agent, "id" | "name" | "emoji" | "hue" | "verified" | "handle">;
   b: Pick<Agent, "id" | "name" | "emoji" | "hue" | "verified" | "handle">;
+  c?: Pick<Agent, "id" | "name" | "emoji" | "hue" | "verified" | "handle">;
+  mcap?: number;
   count: number;
   pics: number;
   snippet: string;
@@ -1335,11 +1355,12 @@ function ago(t: number) {
 }
 
 function Feed({ kols, onOpen }: { kols: Agent[]; onOpen: (id: string) => void }) {
-  const [sort, setSort] = useState<"new" | "hot">("new");
+  const [sort, setSort] = useState<"new" | "hot" | "trending" | "gossip">("new");
   const [rows, setRows] = useState<FeedRow[] | null>(null);
 
   useEffect(() => {
     setRows(null);
+    if (sort === "gossip") return;
     fetch(`/api/posts?sort=${sort}`)
       .then((r) => r.json())
       .then((d) => setRows(Array.isArray(d.posts) ? d.posts : []))
@@ -1357,14 +1378,26 @@ function Feed({ kols, onOpen }: { kols: Agent[]; onOpen: (id: string) => void })
           <button className={sort === "hot" ? "on" : ""} onClick={() => setSort("hot")}>
             🔥 hot
           </button>
+          <button className={sort === "trending" ? "on" : ""} onClick={() => setSort("trending")} title="couples ranked by market cap">
+            📈
+          </button>
+          <button className={sort === "gossip" ? "on" : ""} onClick={() => setSort("gossip")} title="the daily gossip column">
+            📰
+          </button>
         </div>
       </div>
-      <p className="muted small">chats people chose to post. open your own chat and hit 🌍 to add one.</p>
-      {rows === null && <p className="muted">loading the timeline…</p>}
-      {rows?.length === 0 && <p className="muted">nobody has posted yet. be the first degen.</p>}
-      {rows?.map((p) => {
+      {sort === "gossip" && <Gossip onOpen={onOpen} />}
+      {sort !== "gossip" && (
+        <p className="muted small">
+          {sort === "trending" ? "couples ranked by market cap. good lines pump, bad lines dump. " : ""}chats people chose to post. open your own chat and hit 🌍 to add one.
+        </p>
+      )}
+      {sort !== "gossip" && rows === null && <p className="muted">loading the timeline…</p>}
+      {sort !== "gossip" && rows?.length === 0 && <p className="muted">nobody has posted yet. be the first degen.</p>}
+      {sort !== "gossip" && rows?.map((p) => {
         const a = chipAgent(p.a, kols);
         const b = chipAgent(p.b, kols);
+        const c = p.c && chipAgent(p.c, kols);
         return (
           <button key={p.id} className="row-card clickable feed-card" onClick={() => onOpen(p.id)}>
             <div className="pair">
@@ -1376,11 +1409,14 @@ function Feed({ kols, onOpen }: { kols: Agent[]; onOpen: (id: string) => void })
               <small className="feed-who">
                 {a.name}
                 {a.verified && " ✓"} × {b.name}
-                {b.verified && " ✓"} · {p.count} msgs{p.pics ? ` · ${p.pics} 📸` : ""} · {ago(p.postedAt)}
+                {b.verified && " ✓"}
+                {c && ` × ${c.name}${c.verified ? " ✓" : ""}`} · {p.count} msgs{p.pics ? ` · ${p.pics} 📸` : ""} · {ago(p.postedAt)}
               </small>
               {p.snippet && <small>“{p.snippet}”</small>}
             </div>
-            <span className="feed-fire">🔥 {p.fire}</span>
+            <span className="feed-fire">
+              {sort === "trending" && p.mcap !== undefined ? <b className="feed-mcap">{fmtMcap(p.mcap)}</b> : `🔥 ${p.fire}`}
+            </span>
           </button>
         );
       })}
@@ -1388,7 +1424,7 @@ function Feed({ kols, onOpen }: { kols: Agent[]; onOpen: (id: string) => void })
   );
 }
 
-type PublicPost = { id: string; title: string; a: Agent; b: Agent; messages: ChatMsg[]; summary?: string; postedAt: number };
+type PublicPost = { id: string; title: string; a: Agent; b: Agent; c?: Agent; messages: ChatMsg[]; summary?: string; postedAt: number };
 
 function PostView({
   id,
@@ -1474,6 +1510,7 @@ function PostView({
   const live = (x: Agent) => (x.verified ? kols.find((k) => k.id === x.id) ?? x : x);
   const a = live(post.a);
   const b = live(post.b);
+  const c = post.c && live(post.c);
 
   return (
     <section className="chat public">
@@ -1488,7 +1525,7 @@ function PostView({
         <div className="chat-title">
           <b>{post.title}</b>
           <small>
-            {a.name} × {b.name} · {post.messages.length} msgs · posted {ago(post.postedAt)} ago
+            {[a, b, c].filter(Boolean).map((x) => x!.name).join(" × ")} · {post.messages.length} msgs · posted {ago(post.postedAt)} ago
           </small>
         </div>
         <button className="icon" onClick={share} title="share">
@@ -1503,7 +1540,8 @@ function PostView({
             {post.summary}
           </details>
         )}
-        <Transcript a={a} b={b} messages={post.messages} />
+        <Chart match={{ a, b, third: c, messages: post.messages }} />
+        <Transcript a={a} b={b} c={c} messages={post.messages} />
       </div>
       <div className="controls">
         <button className="btn small hot" onClick={() => act("fire")}>
@@ -1527,19 +1565,21 @@ function PostView({
 function Transcript({
   a,
   b,
+  c,
   messages,
   onImage,
 }: {
   a: Agent;
   b: Agent;
+  c?: Agent;
   messages: ChatMsg[];
   onImage?: (id: string, url: string) => void;
 }) {
   return (
     <>
       {messages.map((m) => {
-        const left = m.from === a.id;
-        const ag = left ? a : b;
+        const left = m.from !== b.id; // A on the left, B on the right, a third wheel joins A's side
+        const ag = agentOf({ a, b, third: c }, m.from);
         if (m.kind === "action")
           return (
             <div key={m.id} className="sys event">
@@ -1563,6 +1603,7 @@ function Transcript({
 
 function ChatView({
   match,
+  pool,
   update,
   onBack,
   flash,
@@ -1571,6 +1612,7 @@ function ChatView({
   onOpenPost,
 }: {
   match: Match;
+  pool: Agent[];
   update: (fn: (m: Match) => Match) => void;
   onBack: () => void;
   flash: (t: string) => void;
@@ -1579,12 +1621,14 @@ function ChatView({
   onOpenPost: (id: string) => void;
 }) {
   const [posting, setPosting] = useState(false);
+  const [picking, setPicking] = useState(false);
   const [auto, setAuto] = useState(true);
   const [queue, setQueue] = useState<ChatMsg[]>([]);
   const [fetching, setFetching] = useState(false);
   const [typing, setTyping] = useState(false);
   const [director, setDirector] = useState("");
   const [showDirector, setShowDirector] = useState(false);
+  const [fx, setFx] = useState<ChatMsg | null>(null);
   const scroller = useRef<HTMLDivElement>(null);
   const fetchingRef = useRef(false);
   const matchRef = useRef(match);
@@ -1592,32 +1636,33 @@ function ChatView({
 
   const n = match.messages.length;
   const nextUp = queue[0];
-  const typer = nextUp ? (nextUp.from === match.a.id ? match.a : match.b) : null;
+  const typer = nextUp ? agentOf(match, nextUp.from) : null;
+  const dead = !!match.rug?.mourned; // rugged and the monologue is written: nothing more until a relaunch
 
   const fetchMore = useCallback(
-    async (note?: string) => {
+    async (note?: string, forced?: Twist["kind"], cut?: Agent) => {
       if (fetchingRef.current) return;
       fetchingRef.current = true;
       setFetching(true);
-      const m = matchRef.current;
+      const m = cut ? { ...matchRef.current, third: cut } : matchRef.current;
+      const twist: Twist | undefined = cut ? { kind: "cutin", by: "C" } : planTwist(m, forced);
       try {
         const ep = await nextEpisode({
           a: m.a,
           b: m.b,
+          c: m.third,
+          twist,
           history: m.messages,
           summary: m.summary,
           heat: m.heat,
           director: note,
         });
-        const msgs: ChatMsg[] = ep.messages.map((x) => ({
-          id: uid(),
-          from: x.from === "A" ? m.a.id : m.b.id,
-          kind: x.kind,
-          text: x.text,
-          ...(x.scene ? { scene: x.scene } : {}),
-          source: ep.source,
+        const msgs = toChatMsgs(ep, m);
+        update((x) => ({
+          ...x,
+          ...(ep.summary ? { summary: ep.summary } : {}),
+          ...(twist?.kind === "monologue" && x.rug ? { rug: { ...x.rug, mourned: true } } : {}),
         }));
-        if (ep.summary) update((x) => ({ ...x, summary: ep.summary }));
         if (ep.note === "rate_limited") flash("claude is rate limited, using stub lines");
         setQueue((q) => [...q, ...msgs]);
       } finally {
@@ -1630,17 +1675,21 @@ function ChatView({
   );
 
   // Pull the next stretch of story when the buffer runs dry. Opening a fresh chat counts as the
-  // viewer asking for it; after that, "your Claude" mode waits for a tap.
+  // viewer asking for it, and so does getting rugged (the monologue follows right away).
   useEffect(() => {
     if (queue.length || fetching || !auto) return;
-    if (n === 0 || canAutoFetch()) fetchMore();
-  }, [queue.length, fetching, auto, n, fetchMore]);
+    if (n === 0 || canAutoFetch() || (match.rug && !match.rug.mourned)) fetchMore();
+  }, [queue.length, fetching, auto, n, fetchMore, match.rug]);
 
   const release = useCallback(() => {
     setQueue((q) => {
       if (!q.length) return q;
       const [head, ...rest] = q;
-      update((x) => ({ ...x, messages: [...x.messages, head] }));
+      update((x) => applyMsg(x, head));
+      if (head.kind === "rug" || head.kind === "reveal") {
+        setFx(head);
+        if (head.kind === "rug") return []; // a rug ends the batch; anything still buffered is moot
+      }
       return rest;
     });
     setTyping(false);
@@ -1648,11 +1697,11 @@ function ChatView({
 
   // Play buffered messages out one at a time with a typing delay sized to the message.
   useEffect(() => {
-    if (!auto || !nextUp) return;
+    if (!auto || !nextUp || fx) return;
     setTyping(true);
     const t = setTimeout(release, Math.min(2600, 700 + nextUp.text.length * 18));
     return () => clearTimeout(t);
-  }, [auto, nextUp, release]);
+  }, [auto, nextUp, release, fx]);
 
   useEffect(() => {
     scroller.current?.scrollTo({ top: scroller.current.scrollHeight, behavior: "smooth" });
@@ -1660,17 +1709,32 @@ function ChatView({
 
   const step = () => {
     if (queue.length) release();
-    else fetchMore();
+    else if (!dead) fetchMore();
   };
 
   const direct = (note: string) => {
     const t = note.trim();
-    if (!t) return;
+    if (!t || dead) return;
     setQueue([]); // drop what was buffered so the note lands right away
     setDirector("");
     setShowDirector(false);
     flash("🎬 noted");
     fetchMore(t);
+  };
+
+  const twist = (kind: "rug" | "reveal") => {
+    if (dead || match.rug || fetching) return;
+    setQueue([]);
+    flash(kind === "rug" ? "🪤 somebody's getting cold feet…" : "🕵️ someone has a secret…");
+    fetchMore(undefined, kind);
+  };
+
+  const addThird = (c: Agent) => {
+    setPicking(false);
+    setQueue([]);
+    update((x) => ({ ...x, third: c }));
+    flash(`➕ ${c.name} slid in`);
+    fetchMore(undefined, undefined, c);
   };
 
   const share = async () => {
@@ -1687,12 +1751,17 @@ function ChatView({
   };
 
   const heatLabel = ["warm", "hot", "feral", "nuclear"][Math.min(3, Math.floor(match.heat))];
-  const waitingForTap = !queue.length && !fetching && n > 0 && (!canAutoFetch() || !auto);
+  const waitingForTap = !dead && !queue.length && !fetching && n > 0 && (!canAutoFetch() || !auto);
   const status = fetching
-    ? "both typing…"
+    ? match.rug
+      ? `${(match.rug.by === match.a.id ? match.b : match.a).name} is spiraling…`
+      : "both typing…"
     : typing && typer
       ? `${typer.name} is typing…`
-      : `${n} msgs · heat: ${heatLabel}`;
+      : dead
+        ? `${n} msgs · rugged 🪦`
+        : `${n} msgs · heat: ${heatLabel}`;
+  const names = [match.a, match.b, match.third].filter(Boolean).map((x) => x!.name).join(" × ");
 
   return (
     <section className="chat">
@@ -1703,11 +1772,10 @@ function ChatView({
         <div className="pair">
           <Avatar agent={match.a} size={34} />
           <Avatar agent={match.b} size={34} />
+          {match.third && <Avatar agent={match.third} size={34} />}
         </div>
         <div className="chat-title">
-          <b>
-            {match.a.name} × {match.b.name}
-          </b>
+          <b>{names}</b>
           <small>{status}</small>
         </div>
         {!isStatic && (
@@ -1725,6 +1793,7 @@ function ChatView({
           </button>
         )}
       </div>
+      <Chart match={match} />
       {posting && (
         <PostSheet
           match={match}
@@ -1736,6 +1805,10 @@ function ChatView({
           }}
         />
       )}
+      {picking && (
+        <ThirdPicker pool={pool.filter((x) => x.id !== match.a.id && x.id !== match.b.id)} onPick={addThird} onClose={() => setPicking(false)} />
+      )}
+      {fx && <DramaFx msg={fx} agent={agentOf(match, fx.from)} onDone={() => setFx(null)} />}
 
       <div className="msgs" ref={scroller}>
         <div className="sys">
@@ -1755,6 +1828,7 @@ function ChatView({
         <Transcript
           a={match.a}
           b={match.b}
+          c={match.third}
           messages={match.messages}
           onImage={(id, url) =>
             update((x) => ({ ...x, messages: x.messages.map((y) => (y.id === id ? { ...y, image: url } : y)) }))
@@ -1774,6 +1848,20 @@ function ChatView({
             keep going ›
           </button>
         )}
+        {dead && !queue.length && !fetching && (
+          <div className="sys rugged">
+            🪦 chart is dead. {match.rug && agentOf(match, match.rug.by).name} removed liquidity.
+            <button
+              className="btn small"
+              onClick={() => {
+                update(relaunch);
+                flash("🚀 v2 is live");
+              }}
+            >
+              relaunch as v2 🚀
+            </button>
+          </div>
+        )}
       </div>
 
       {showDirector && (
@@ -1784,6 +1872,35 @@ function ChatView({
                 {p}
               </button>
             ))}
+          </div>
+          <div className="drama-row">
+            <button className="chip" disabled={!!match.rug || fetching} onClick={() => { setShowDirector(false); twist("rug"); }}>
+              🪤 rug pull breakup
+            </button>
+            <button className="chip" disabled={!!match.rug || match.revealed || fetching} onClick={() => { setShowDirector(false); twist("reveal"); }}>
+              🕵️ dev wallet reveal
+            </button>
+            {match.third ? (
+              <button
+                className="chip"
+                onClick={() => {
+                  const c = match.third!;
+                  update((x) => ({
+                    ...x,
+                    third: undefined,
+                    messages: [...x.messages, { id: uid(), from: x.a.id, kind: "action", text: `kicked ${c.name} out of the chat`, source: "stub" }],
+                  }));
+                  setQueue([]);
+                  setShowDirector(false);
+                }}
+              >
+                👋 kick {match.third.name}
+              </button>
+            ) : (
+              <button className="chip" disabled={dead} onClick={() => { setShowDirector(false); setPicking(true); }}>
+                ➕ add a third
+              </button>
+            )}
           </div>
           <form
             onSubmit={(e) => {
@@ -1809,7 +1926,7 @@ function ChatView({
         <button className="btn small" onClick={() => setAuto((a) => !a)}>
           {auto ? "⏸" : "▶"}
         </button>
-        <button className="btn small" disabled={fetching} onClick={step}>
+        <button className="btn small" disabled={fetching || (dead && !queue.length)} onClick={step}>
           next ›
         </button>
         <button className={`btn small ${showDirector ? "on" : ""}`} onClick={() => setShowDirector((v) => !v)}>
@@ -1828,7 +1945,7 @@ function ChatView({
           className="btn small"
           onClick={() => {
             setQueue([]);
-            update((x) => ({ ...x, messages: [], heat: 0, summary: undefined }));
+            update((x) => ({ ...x, messages: [], heat: 0, summary: undefined, rug: undefined, revealed: undefined, third: undefined }));
           }}
         >
           ↺

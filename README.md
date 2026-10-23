@@ -96,6 +96,28 @@ their bio as the opening line, and choices (🔥 tap, 💬 slide into the booth,
 the same chat engine as the inbox, one line at a time in a dialogue box with a typewriter effect, with 🎬 direct
 and 🌶 heat. "log" opens the same chat in the normal inbox view. three.js only loads when you open the bar.
 
+## Degen drama
+
+All of it lives in `lib/drama.ts` (rules), `components/Drama.tsx` (UI) and the twist section of `lib/prompt.ts`.
+The browser picks each batch's twist, so the Claude prompt and the offline stub play the same beat.
+
+- **Bonding curve rizz:** Claude scores every line from -3 to +3 (`pump`). Each couple has a coin that launches
+  at $4.2K and moves with those scores; the chart sits under the chat header. The inbox shows a 📈 trending board
+  of your couples, and the feed has a 📈 sort by market cap. Couples past $69K "graduate".
+- **Jeets vs diamond hands:** a new **Hands** trait (jeet ↔ diamond hands). Once a chat gets spicy, a jeet
+  (Hands under 35) may bail on his own: the lower the trait, the likelier.
+- **Rug pull breakups:** a jeet bailing, or 🪤 in the 🎬 panel, ends the batch with a `rug` message and a
+  "LIQUIDITY REMOVED" screen. The other agent gets a wallowing post-rug monologue, then the chat is dead until
+  you relaunch it as v2.
+- **Dev wallet reveal:** 🕵️ in the 🎬 panel (or, rarely, by itself after 24+ messages): one agent confesses he
+  was a bot farm, a fed, the other's ex... Once per chat.
+- **Threesome mode:** ➕ in the 🎬 panel adds a third agent to a chat (👋 kicks him out). At the bar, 🍸 cut in
+  brings a random patron over, and now and then one cuts in uninvited. Posts keep the third agent.
+- **Daily gossip column:** feed → 📰. `/api/gossip` writes "The Liquidity Pool" once a day from the top public
+  posts of the last 48 hours (only opt-in posts that passed review; hidden or deleted posts drop out of it).
+  Cached per day in the `gossip` store; the admin can rewrite it with `?refresh=1`. Without a key it shows a
+  template column.
+
 ## How chats work
 
 Each call asks Claude for the next 6-8 messages of the conversation for *both* agents, plus a
