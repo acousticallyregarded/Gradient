@@ -4,9 +4,13 @@ export type TraitKey =
   | "dominance"
   | "submissiveness"
   | "playfulness"
-  | "intensity";
+  | "intensity"
+  | "commitment";
 
 export type Traits = Record<TraitKey, number>; // each 0-100
+
+// Agents saved before a trait existed don't have it; read traits through this.
+export const trait = (a: Pick<Agent, "traits">, k: TraitKey) => a.traits?.[k] ?? 50;
 
 export interface Agent {
   id: string;
@@ -33,7 +37,8 @@ export interface Agent {
   createdAt: number;
 }
 
-export type MsgKind = "text" | "pic" | "voice" | "tip" | "location" | "action";
+// "rug": the sender ghosts mid-chat (liquidity removed). "reveal": the dev wallet reveal confession.
+export type MsgKind = "text" | "pic" | "voice" | "tip" | "location" | "action" | "rug" | "reveal";
 
 export interface ChatMsg {
   id: string;
@@ -42,6 +47,7 @@ export interface ChatMsg {
   image?: string; // revealed pic for kind "pic": small JPEG data URL, kept with the chat
   scene?: string; // kind "pic": the writer's full visual brief for the image (text is just the caption)
   text: string;
+  pump?: number; // -3..3, how much this line moved the couple's chart
   source: "claude" | "stub";
 }
 
@@ -53,6 +59,9 @@ export interface Match {
   heat: number; // manual heat boost from the 🌶 button
   summary?: string; // rolling "story so far", lets chats run long without resending everything
   postId?: string; // set once this chat was posted to the public feed
+  third?: Agent; // threesome mode: a third agent who slid in (or cut in at the bar)
+  rug?: { by: string; at: number; mourned?: boolean }; // someone ghosted; mourned once the post-rug monologue was written
+  revealed?: boolean; // the dev wallet reveal already happened in this chat
   createdAt: number;
 }
 
@@ -63,6 +72,7 @@ export const TRAIT_META: { key: TraitKey; label: string; lo: string; hi: string 
   { key: "submissiveness", label: "Submissiveness", lo: "bratty", hi: "obedient" },
   { key: "playfulness", label: "Playfulness", lo: "dead serious", hi: "unserious" },
   { key: "intensity", label: "Intensity", lo: "slow burn", hi: "0→100" },
+  { key: "commitment", label: "Hands", lo: "jeet", hi: "diamond hands" },
 ];
 
 export const POSITIONS = ["Top", "Vers Top", "Versatile", "Vers Bottom", "Bottom", "Side"];

@@ -1,5 +1,5 @@
 import Anthropic from "@anthropic-ai/sdk";
-import { buildEpisodePrompt, parseEpisode, type EpisodeRequest } from "@/lib/prompt";
+import { buildEpisodePrompt, cleanTwist, enforceTwist, parseEpisode, type EpisodeRequest } from "@/lib/prompt";
 
 export const runtime = "nodejs";
 
@@ -13,6 +13,8 @@ export async function POST(req: Request) {
   }
 
   const body = (await req.json()) as EpisodeRequest;
+  if (!body.c?.id) delete body.c;
+  body.twist = cleanTwist(body.twist, !!body.c);
 
   try {
     const client = new Anthropic();
@@ -27,9 +29,9 @@ export async function POST(req: Request) {
       return Response.json({ fallback: true, reason: "refusal" });
     }
     const text = response.content.flatMap((b) => (b.type === "text" ? [b.text] : [])).join("");
-    const episode = parseEpisode(text);
+    const episode = parseEpisode(text, !!body.c);
     if (!episode) return Response.json({ fallback: true, reason: "unparseable" });
-    return Response.json(episode);
+    return Response.json(enforceTwist(episode, body.twist));
   } catch (err) {
     if (err instanceof Anthropic.RateLimitError) {
       return Response.json({ fallback: true, reason: "rate_limited" });

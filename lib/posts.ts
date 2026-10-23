@@ -1,5 +1,6 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { kvAll } from "./kv";
+import { mcapOf } from "./drama";
 import { TRAIT_META, type Agent, type ChatMsg, type MsgKind } from "./types";
 
 // Public feed: chats a viewer chose to post. Everything here is rebuilt server-side from the
@@ -12,6 +13,7 @@ export interface PublicPost {
   title: string;
   a: Agent;
   b: Agent;
+  c?: Agent; // threesome mode
   messages: ChatMsg[];
   summary?: string;
   postedAt: number;
@@ -23,6 +25,8 @@ export interface FeedItem {
   title: string;
   a: AgentChip;
   b: AgentChip;
+  c?: AgentChip;
+  mcap?: number; // the couple's market cap at posting time (bonding curve rizz)
   count: number;
   pics: number;
   snippet: string;
@@ -40,7 +44,7 @@ export interface StoredPost {
 
 export const MAX_MESSAGES = 200;
 const MAX_PICS = 16;
-const KINDS: MsgKind[] = ["text", "pic", "voice", "tip", "location", "action"];
+const KINDS: MsgKind[] = ["text", "pic", "voice", "tip", "location", "action", "rug", "reveal"];
 
 const clip = (v: unknown, n: number) => String(v ?? "").replace(/\s+/g, " ").trim().slice(0, n);
 const num = (v: unknown, lo: number, hi: number, d: number) => {
@@ -86,7 +90,7 @@ type Built = { post: Omit<PublicPost, "id" | "postedAt">; kolHandles: string[] }
 
 // Rebuild a post from what the client sent. Verified agents are swapped for the live record (and must
 // have opted in to the feed); anyone else claiming a verified KOL's name is refused.
-export async function buildPost(body: { title?: unknown; a?: Partial<Agent>; b?: Partial<Agent>; messages?: unknown; summary?: unknown }): Promise<Built> {
+export async function buildPost(body: { title?: unknown; a?: Partial<Agent>; b?: Partial<Agent>; c?: Partial<Agent>; messages?: unknown; summary?: unknown }): Promise<Built> {
   if (!body.a || !body.b || !Array.isArray(body.messages)) return { error: "nothing to post" };
   const kols = Object.values(await kvAll("kols")).map((v) => (JSON.parse(v) as { agent: Agent }).agent);
   const byId = new Map(kols.map((k) => [k.id, k]));
@@ -106,33 +110,37 @@ export async function buildPost(body: { title?: unknown; a?: Partial<Agent>; b?:
   };
   const a = resolve(body.a);
   const b = resolve(body.b);
+  const c = body.c ? resolve(body.c) : undefined;
   if (typeof a === "string") return { error: a };
   if (typeof b === "string") return { error: b };
-  if (a.id === b.id) return { error: "nothing to post" };
+  if (typeof c === "string") return { error: c };
+  if (a.id === b.id || (c && (c.id === a.id || c.id === b.id))) return { error: "nothing to post" };
 
   let pics = 0;
   const messages: ChatMsg[] = (body.messages as Partial<ChatMsg>[])
     .slice(0, MAX_MESSAGES)
-    .filter((m) => m && (m.from === a.id || m.from === b.id))
+    .filter((m) => m && (m.from === a.id || m.from === b.id || (c && m.from === c.id)))
     .map((m, i) => {
       const kind = KINDS.includes(m.kind as MsgKind) ? (m.kind as MsgKind) : "text";
       const image = kind === "pic" && pics < MAX_PICS ? okImage(m.image, 200_000) : undefined;
       if (image) pics++;
+      const pump = Number(m.pump);
       return {
         id: `m${i}`,
         from: m.from!,
         kind,
         text: clip(m.text, 600),
         ...(image ? { image } : {}),
+        ...(Number.isFinite(pump) ? { pump: Math.max(-3, Math.min(3, Math.round(pump))) } : {}),
         source: m.source === "claude" ? "claude" : "stub",
       } as ChatMsg;
     })
     .filter((m) => m.text);
   if (messages.length < 4) return { error: "let them talk a bit more first (4+ messages)" };
 
-  const title = clip(body.title, 60) || `${a.name} × ${b.name}`;
+  const title = clip(body.title, 60) || [a, b, c].filter(Boolean).map((x) => x!.name).join(" × ");
   const summary = typeof body.summary === "string" ? clip(body.summary, 600) : undefined;
-  return { post: { title, a, b, messages, summary }, kolHandles };
+  return { post: { title, a, b, ...(c ? { c } : {}), messages, summary }, kolHandles };
 }
 
 const REVIEW_PROMPT = (verified: string[]) => `You review chats before they are posted to the public feed of Gradient, an 18+ comedy app (Grindr parody for crypto degens) where fictional adult AI agents flirt. Crude innuendo, horny banter, swearing and degen slang are the point and are fine.
@@ -155,11 +163,11 @@ export type Review = { allowed: boolean; reason: string; dropImages: number[] } 
 export async function reviewPost(p: Omit<PublicPost, "id" | "postedAt">, verified: string[]): Promise<Review> {
   if (!process.env.ANTHROPIC_API_KEY && !process.env.ANTHROPIC_AUTH_TOKEN) return { error: "no_key" };
   const images = imagesOf(p);
-  const who = (id: string) => (id === p.a.id ? p.a.name : p.b.name);
+  const who = (id: string) => (id === p.a.id ? p.a.name : p.c && id === p.c.id ? p.c.name : p.b.name);
   const profile = (a: Agent) => `${a.name}, ${a.age}. bio: ${a.bio || "-"}. look: ${a.look || "-"}. tags: ${a.tags.join(", ") || "-"}`;
   const transcript = p.messages.map((m) => `${who(m.from)} [${m.kind ?? "text"}]: ${m.text}`).join("\n");
   const content: Anthropic.ContentBlockParam[] = [
-    { type: "text", text: `TITLE: ${p.title}\n\nPROFILES\n${profile(p.a)}\n${profile(p.b)}\n\nCHAT\n${transcript}` },
+    { type: "text", text: `TITLE: ${p.title}\n\nPROFILES\n${[p.a, p.b, p.c].filter((x): x is Agent => !!x).map(profile).join("\n")}\n\nCHAT\n${transcript}` },
   ];
   images.forEach((src, i) => {
     const m = /^data:(image\/\w+);base64,(.+)$/.exec(src)!;
@@ -191,14 +199,14 @@ export async function reviewPost(p: Omit<PublicPost, "id" | "postedAt">, verifie
 
 // Every distinct image in the post that needs checking, in a fixed order: the pfps, then chat pics.
 // A verified KOL's own pfp was already approved by them (and is a real face on purpose), so it's skipped.
-export function imagesOf(p: Pick<PublicPost, "a" | "b" | "messages">): string[] {
-  const approved = new Set([p.a, p.b].filter((x) => x.verified && x.photo).map((x) => x.photo));
-  const all = [p.a.photo, p.b.photo, ...p.messages.map((m) => m.image)].filter((x): x is string => !!x && !approved.has(x));
+export function imagesOf(p: Pick<PublicPost, "a" | "b" | "c" | "messages">): string[] {
+  const approved = new Set([p.a, p.b, p.c].filter((x) => x?.verified && x.photo).map((x) => x!.photo));
+  const all = [p.a.photo, p.b.photo, p.c?.photo, ...p.messages.map((m) => m.image)].filter((x): x is string => !!x && !approved.has(x));
   return [...new Set(all)];
 }
 
 // Hide every image the review flagged, wherever it appears (a pfp can also be sent as a pic).
-export function dropImages<T extends Pick<PublicPost, "a" | "b" | "messages">>(p: T, idx: number[]): T {
+export function dropImages<T extends Pick<PublicPost, "a" | "b" | "c" | "messages">>(p: T, idx: number[]): T {
   const list = imagesOf(p);
   const bad = new Set(idx.map((i) => list[i]).filter(Boolean));
   if (!bad.size) return p;
@@ -207,6 +215,7 @@ export function dropImages<T extends Pick<PublicPost, "a" | "b" | "messages">>(p
     ...p,
     a: strip(p.a),
     b: strip(p.b),
+    ...(p.c ? { c: strip(p.c) } : {}),
     messages: p.messages.map((m) => (m.image && bad.has(m.image) ? { ...m, image: undefined } : m)),
   };
 }
@@ -218,6 +227,8 @@ export function feedItem(post: PublicPost): FeedItem {
     title: post.title,
     a: chip(post.a),
     b: chip(post.b),
+    ...(post.c ? { c: chip(post.c) } : {}),
+    mcap: Math.round(mcapOf(post.messages)),
     count: post.messages.length,
     pics: post.messages.filter((m) => m.image).length,
     snippet: firstText ? firstText.text.slice(0, 120) : "",

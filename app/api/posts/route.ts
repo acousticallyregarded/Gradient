@@ -10,12 +10,14 @@ const PER_DAY = Number(process.env.POSTS_PER_DAY || 10);
 // The public feed: newest first, or ?sort=hot by 🔥. Reported-away posts only show for the admin.
 export async function GET(req: Request) {
   const admin = isAdmin(req);
-  const hot = new URL(req.url).searchParams.get("sort") === "hot";
+  const sort = new URL(req.url).searchParams.get("sort");
+  const hot = sort === "hot";
+  const trending = sort === "trending";
   try {
     const items = Object.values(await kvAll("feed"))
       .map((v) => JSON.parse(v) as FeedItem)
       .filter((p) => admin || !p.hidden)
-      .sort((x, y) => (hot ? y.fire - x.fire : 0) || y.postedAt - x.postedAt)
+      .sort((x, y) => (hot ? y.fire - x.fire : trending ? (y.mcap ?? 0) - (x.mcap ?? 0) : 0) || y.postedAt - x.postedAt)
       .slice(0, admin ? 500 : 100);
     return Response.json({ posts: items });
   } catch (e) {
