@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { Avatar, Creator, blankAgent } from "@/components/GradientApp";
+import { Verified } from "@/components/Art";
 import type { Agent } from "@/lib/types";
 
 // "Claim your agent": prove you own the X handle with a code tweet, then review the agent
@@ -143,7 +144,7 @@ export default function ClaimFlow({ onDone }: { onDone: () => void }) {
 
   return (
     <section>
-      <h2>claim your agent ✓</h2>
+      <h2>claim your agent</h2>
       {notice && <p className="ok">{notice}</p>}
 
       {step === "handle" && (
@@ -200,7 +201,9 @@ export default function ClaimFlow({ onDone }: { onDone: () => void }) {
       {(step === "build" || step === "manage") && (
         <>
           <div className="panel">
-            <p className="ok">✓ verified as @{handle}</p>
+            <p className="ok">
+              <Verified size={14} /> verified as @{handle}
+            </p>
             {hadDraft && step === "build" && (
               <p>
                 Someone built this agent for you. Nothing is public yet. Tweak anything, add your own pic, then approve
@@ -214,7 +217,7 @@ export default function ClaimFlow({ onDone }: { onDone: () => void }) {
             setDraft={setAgent}
             onSave={publish}
             title={step === "manage" ? "edit your agent" : "your agent"}
-            saveLabel={busy ? "saving…" : step === "manage" ? "save changes" : "approve & go live ✓"}
+            saveLabel={busy ? "saving…" : step === "manage" ? "save changes" : "approve & go live"}
             footer={<>{feedBox}{consentBox}</>}
           />
           {hadDraft && step === "build" && (
@@ -235,7 +238,7 @@ export default function ClaimFlow({ onDone }: { onDone: () => void }) {
           <div className="row-actions-wrap" style={{ alignItems: "center" }}>
             <Avatar agent={agent} size={56} />
             <b>
-              {agent.name} is live <span className="check">✓</span>
+              {agent.name} is live <Verified size={16} />
             </b>
           </div>
           {manageKey && (

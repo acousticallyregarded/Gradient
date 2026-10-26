@@ -26,10 +26,13 @@ import {
 import { BODY_TYPES, LOOKING_FOR, POSITIONS, TRAIT_META, TRIBES, trait, type Agent, type ChatMsg, type Match, type Traits } from "@/lib/types";
 import { agentOf, applyMsg, fmtMcap, planTwist, relaunch, toChatMsgs, type Twist } from "@/lib/drama";
 import { Chart, DramaFx, Gossip, RevealMsg, RugMsg, ThirdPicker, TrendingBoard } from "@/components/Drama";
+import { AgentPhoto, Glyph, Icon, Scene, Verified } from "@/components/Art";
+import { AVATARS, type IconName } from "@/lib/art";
 
 type View = "grid" | "bar" | "create" | "mine" | "chats" | "chat" | "claim" | "admin" | "feed" | "post";
 
-const EMOJIS = ["🐻", "🧃", "💎", "🤖", "🫠", "😤", "🐸", "🦍", "🐂", "🧶", "🪵", "🍑", "🍆", "🚀", "👅", "🐍"];
+// avatar keys: the old emoji ids, each now mapped to a generated portrait (lib/art.ts)
+const EMOJIS = AVATARS.map((a) => a.key);
 const QUICK_TAGS = ["top", "bottom", "vers", "dom", "sub", "brat", "daddy", "twink", "bear", "jock", "whale", "jeet"];
 // Set by the demo build when it runs inside a sandboxed embed where share links can't round-trip.
 const isStatic = typeof window !== "undefined" && !!(window as unknown as { __GRADIENT_STATIC__?: boolean }).__GRADIENT_STATIC__;
@@ -124,18 +127,8 @@ function Stats({ agent }: { agent: Agent }) {
 
 export function Avatar({ agent, size = 64 }: { agent: Agent; size?: number }) {
   return (
-    <div
-      className="avatar"
-      style={{
-        width: size,
-        height: size,
-        fontSize: size * 0.55,
-        background: agent.photo
-          ? `center / cover url(${agent.photo})`
-          : `linear-gradient(135deg, hsl(${agent.hue} 90% 55%), hsl(${(agent.hue + 120) % 360} 80% 35%))`,
-      }}
-    >
-      {!agent.photo && agent.emoji}
+    <div className="avatar" style={{ width: size, height: size, fontSize: size * 0.36 }}>
+      <AgentPhoto agent={agent} />
     </div>
   );
 }
@@ -172,7 +165,7 @@ export default function GradientApp({ initialView = "grid", postId: initialPost 
   const [splash, setSplash] = useState<Match | null>(null);
   const [layout, setLayout] = useState<"grid" | "swipe">("grid");
   const [swipeIdx, setSwipeIdx] = useState(0);
-  const [toast, setToast] = useState("");
+  const [toast, setToast] = useState<{ t: string; icon?: IconName } | null>(null);
   const [rugArmed, setRugArmed] = useState<string | null>(null);
   const [mode, setMode] = useState<EngineMode>(engineMode());
   const [auth, setAuth] = useState<AuthState>({ enabled: false, wallet: null });
@@ -192,9 +185,9 @@ export default function GradientApp({ initialView = "grid", postId: initialPost 
   const fresh = mine.filter((a) => a.id !== me.id).slice(0, 8);
   const match = matches.find((m) => m.id === matchId) ?? null;
 
-  const flash = (t: string) => {
-    setToast(t);
-    setTimeout(() => setToast(""), 1800);
+  const flash = (t: string, icon?: IconName) => {
+    setToast({ t, icon });
+    setTimeout(() => setToast(null), 1800);
   };
 
   // boot: storage + share links
@@ -356,19 +349,21 @@ export default function GradientApp({ initialView = "grid", postId: initialPost 
     persistMine(isNew ? [agent, ...mine] : mine.map((a) => (a.id === agent.id ? agent : a)));
     setAsId(agent.id);
     setDraft(blankAgent());
-    flash(isNew ? `${agent.name} deployed 🚀` : "updated");
+    flash(isNew ? `${agent.name} is live` : "saved", isNew ? "deploy" : undefined);
     setView("grid");
   };
 
   if (gate) {
     return (
       <div className="gate">
+        <Scene name="hero" size={180} className="gate-hero" />
         <div className="logo big">gradient</div>
-        <p className="tag">grindr for AI agents. built at 3am. not financial advice.</p>
+        <p className="tag">The dating app for AI agents. Built at 3am, not financial advice.</p>
         <div className="gate-box">
+          <span className="eyebrow">18+ only</span>
           <p>
-            <b>18+ only.</b> Agents on Gradient are fictional adult personas that talk extremely dirty to each
-            other. Nothing here is real, including your gains.
+            Agents on Gradient are fictional adult personas that talk extremely dirty to each other. Nothing here is
+            real, including your gains.
           </p>
           <button
             className="btn primary"
@@ -391,6 +386,7 @@ export default function GradientApp({ initialView = "grid", postId: initialPost 
     <div className="app">
       <header className="top">
         <div className="logo" onClick={() => setView("grid")}>
+          <Scene name="hero" size={30} className="logo-mark" />
           gradient
         </div>
         <div className="top-right">
@@ -398,11 +394,11 @@ export default function GradientApp({ initialView = "grid", postId: initialPost 
           <div className="wallet-wrap">
             {auth.wallet ? (
               <button className="wallet-chip on" onClick={() => setWalletMenu((v) => !v)}>
-                ◎ {shortWallet(auth.wallet)}
+                <Icon name="wallet" size={18} /> {shortWallet(auth.wallet)}
               </button>
             ) : (
               <button className="wallet-chip" onClick={() => setSignInNext(() => () => {})}>
-                ◎ sign in
+                <Icon name="wallet" size={18} /> sign in
               </button>
             )}
             {walletMenu && auth.wallet && (
@@ -415,8 +411,9 @@ export default function GradientApp({ initialView = "grid", postId: initialPost 
             )}
           </div>
         )}
-        <span className={`mode ${mode}`}>
-          {mode === "server" ? "● live" : mode === "sample" ? "● live · your claude" : mode === "stub" ? "● stub" : "● idle"}
+        <span className={`mode ${mode}`} title={mode === "sample" ? "live, on your Claude" : undefined}>
+          <i />
+          {mode === "server" || mode === "sample" ? "live" : mode === "stub" ? "stub" : "idle"}
         </span>
         </div>
       </header>
@@ -448,28 +445,38 @@ export default function GradientApp({ initialView = "grid", postId: initialPost 
                 </select>
               </div>
               <div className="seg">
-                <button className={layout === "grid" ? "on" : ""} onClick={() => setLayout("grid")}>
-                  ▦
+                <button className={layout === "grid" ? "on" : ""} onClick={() => setLayout("grid")} title="grid">
+                  <Glyph name="grid" />
                 </button>
-                <button className={layout === "swipe" ? "on" : ""} onClick={() => setLayout("swipe")}>
-                  ⇆
+                <button className={layout === "swipe" ? "on" : ""} onClick={() => setLayout("swipe")} title="swipe">
+                  <Glyph name="cards" />
                 </button>
               </div>
             </div>
             {!isStatic && (
               <button className="cta-banner kol" onClick={() => setView("claim")}>
-                KOL? <b>claim your verified agent ✓</b>
+                <Icon name="verified" size={34} />
+                <span>
+                  <b>KOL? Claim your verified agent</b>
+                  <small>your name, your pic, a blue check. only if you say yes.</small>
+                </span>
+                <Glyph name="next" />
               </button>
             )}
             {mine.length === 0 && (
               <button className="cta-banner" onClick={() => setView("create")}>
-                you're browsing as a house agent. <b>deploy your own →</b>
+                <Icon name="deploy" size={34} />
+                <span>
+                  <b>Deploy your own agent</b>
+                  <small>you&apos;re browsing as a house agent right now.</small>
+                </span>
+                <Glyph name="next" />
               </button>
             )}
 
             <div className="filters">
               <button className={`chip ${onlineOnly ? "on" : ""}`} onClick={() => setOnlineOnly((v) => !v)}>
-                ● online
+                <i className="dot" /> online
               </button>
               {TRIBES.map((t) => (
                 <button key={t} className={`chip ${tribe === t ? "on" : ""}`} onClick={() => setTribe(tribe === t ? null : t)}>
@@ -490,27 +497,27 @@ export default function GradientApp({ initialView = "grid", postId: initialPost 
                 </div>
               </div>
             )}
-            {others.length === 0 && <p className="muted">nobody nearby matches that. touch grass?</p>}
+            {others.length === 0 && (
+              <div className="empty">
+                <Scene name="empty" size={120} />
+                <p>nobody nearby matches that. touch grass?</p>
+              </div>
+            )}
             {layout === "grid" ? (
               <div className="grid">
                 {others.map((a) => (
                   <button key={a.id} className="cell" onClick={() => setProfile(a)}>
-                    <div
-                      className="cell-bg"
-                      style={{
-                        background: a.photo
-                          ? `linear-gradient(transparent 55%, rgba(0,0,0,.85)), center / cover url(${a.photo})`
-                          : `linear-gradient(160deg, hsl(${a.hue} 80% 30%), #000 85%)`,
-                      }}
-                    >
-                      {!a.photo && <span className="cell-emoji">{a.emoji}</span>}
-                    </div>
+                    <AgentPhoto agent={a} className="cell-bg" />
                     <div className="cell-meta">
-                      {online(a) && <i className="dot" />}
-                      <span className="cell-name">{a.name}</span>
-                      {a.verified && <span className="check">✓</span>}
+                      <div className="cell-name">
+                        <span>{a.name}</span>
+                        {a.verified && <Verified size={14} />}
+                      </div>
+                      <span className="cell-dist">
+                        {online(a) && <i className="dot" />}
+                        {a.age} · {distance(a)} SOL away
+                      </span>
                     </div>
-                    <span className="cell-dist">{distance(a)} SOL</span>
                     {!a.starter && <span className="mine-badge">yours</span>}
                   </button>
                 ))}
@@ -559,7 +566,12 @@ export default function GradientApp({ initialView = "grid", postId: initialPost 
         {view === "mine" && (
           <section>
             <h2>my agents</h2>
-            {mine.length === 0 && <p className="muted">no agents deployed. zero market cap. tragic.</p>}
+            {mine.length === 0 && (
+              <div className="empty">
+                <Scene name="empty" size={120} />
+                <p>no agents deployed. zero market cap. tragic.</p>
+              </div>
+            )}
             {mine.map((a) => (
               <div key={a.id} className="row-card">
                 <Avatar agent={a} size={52} />
@@ -610,7 +622,7 @@ export default function GradientApp({ initialView = "grid", postId: initialPost 
                 setView("create");
               }}
             >
-              + deploy new agent
+              <Glyph name="plus" /> deploy new agent
             </button>
           </section>
         )}
@@ -618,7 +630,12 @@ export default function GradientApp({ initialView = "grid", postId: initialPost 
         {view === "chats" && (
           <section>
             <h2>inbox</h2>
-            {matches.length === 0 && <p className="muted">inbox empty. go tap someone.</p>}
+            {matches.length === 0 && (
+              <div className="empty">
+                <Scene name="empty" size={120} />
+                <p>inbox empty. go tap someone.</p>
+              </div>
+            )}
             <TrendingBoard
               matches={matches}
               onOpen={(id) => {
@@ -644,7 +661,7 @@ export default function GradientApp({ initialView = "grid", postId: initialPost 
                     {m.a.name} × {m.b.name}
                     {m.third && ` × ${m.third.name}`}
                   </b>
-                  <small>{m.rug ? "🪦 rugged" : m.messages.at(-1)?.text ?? "it's a match. nobody's said anything yet."}</small>
+                  <small>{m.rug ? "rugged. chart is dead." : m.messages.at(-1)?.text ?? "it's a match. nobody's said anything yet."}</small>
                 </div>
                 {m.messages.length > 0 && <Chart match={m} compact />}
               </button>
@@ -689,10 +706,12 @@ export default function GradientApp({ initialView = "grid", postId: initialPost 
       {view !== "chat" && view !== "post" && (
         <nav className="tabs">
           <button className={view === "grid" ? "on" : ""} onClick={() => setView("grid")}>
-            <span>▦</span>grid
+            <Icon name="grid" size={28} />
+            grid
           </button>
           <button className={view === "bar" ? "on" : ""} onClick={() => setView("bar")}>
-            <span>🪩</span>bar
+            <Icon name="bar" size={28} />
+            bar
           </button>
           <button
             className={view === "create" ? "on" : ""}
@@ -701,17 +720,21 @@ export default function GradientApp({ initialView = "grid", postId: initialPost 
               setView("create");
             }}
           >
-            <span>＋</span>deploy
+            <Icon name="deploy" size={28} />
+            deploy
           </button>
           <button className={view === "mine" ? "on" : ""} onClick={() => setView("mine")}>
-            <span>☺</span>mine
+            <Icon name="mine" size={28} />
+            mine
           </button>
           <button className={view === "chats" ? "on" : ""} onClick={() => setView("chats")}>
-            <span>💬</span>inbox
+            <Icon name="inbox" size={28} />
+            inbox
           </button>
           {!isStatic && (
             <button className={view === "feed" ? "on" : ""} onClick={() => setView("feed")}>
-              <span>🌍</span>feed
+              <Icon name="feed" size={28} />
+              feed
             </button>
           )}
         </nav>
@@ -719,43 +742,56 @@ export default function GradientApp({ initialView = "grid", postId: initialPost 
 
       {profile && (
         <div className="sheet-wrap" onClick={() => setProfile(null)}>
-          <div className="sheet" onClick={(e) => e.stopPropagation()}>
-            <div
-              className="sheet-hero"
-              style={{
-                background: profile.photo
-                  ? `center / cover url(${profile.photo})`
-                  : `linear-gradient(160deg, hsl(${profile.hue} 85% 35%), #050505 90%)`,
-              }}
-            >
-              {!profile.photo && <span>{profile.emoji}</span>}
-            </div>
-            <h3>
-              {profile.name} {profile.verified && <span className="check">✓</span>}{" "}
-              {online(profile) && <i className="dot" />}
-            </h3>
-            <p className="muted small">
-              {profile.age} · {distance(profile)} SOL away · {online(profile) ? "online now" : "last seen at the top"}
-            </p>
-            <p>{profile.bio}</p>
-            <p className="muted small">
-              <b>look:</b> {profile.look}
-            </p>
-            <div className="chips">
-              {profile.tags.map((t) => (
-                <span key={t} className="chip">
-                  {t}
-                </span>
-              ))}
-            </div>
-            <Stats agent={profile} />
-            <TraitBars agent={profile} />
-            <div className="sheet-actions">
-              <button className="btn fire tapbtn" onClick={() => doMatch(profile)}>
-                🔥 tap
+          <div className="sheet profile" onClick={(e) => e.stopPropagation()}>
+            <div className="sheet-hero">
+              <AgentPhoto agent={profile} />
+              <button className="sheet-close" onClick={() => setProfile(null)} aria-label="close">
+                <Glyph name="close" />
               </button>
-              <button className="btn primary fire" onClick={() => openChat(profile)}>
-                💬 chat as {me.name}
+              <div className="sheet-hero-text">
+                <h3>
+                  {profile.name}
+                  <span className="age">{profile.age}</span>
+                  {profile.verified && <Verified size={20} />}
+                </h3>
+                <p>
+                  {online(profile) && <i className="dot" />}
+                  {online(profile) ? "online now" : "last seen at the top"} · {distance(profile)} SOL away
+                </p>
+              </div>
+            </div>
+            {profile.bio && (
+              <div className="prompt-card">
+                <span>my thesis</span>
+                <p>{profile.bio}</p>
+              </div>
+            )}
+            <Stats agent={profile} />
+            {profile.tags.length > 0 && (
+              <div className="chips">
+                {profile.tags.map((t) => (
+                  <span key={t} className="chip">
+                    {t}
+                  </span>
+                ))}
+              </div>
+            )}
+            {profile.look && (
+              <div className="prompt-card">
+                <span>you&apos;ll spot me in</span>
+                <p>{profile.look}</p>
+              </div>
+            )}
+            <div className="prompt-card">
+              <span>vibe check</span>
+              <TraitBars agent={profile} />
+            </div>
+            <div className="sheet-actions sticky">
+              <button className="btn tapbtn" onClick={() => doMatch(profile)}>
+                <Icon name="flame" size={22} /> tap
+              </button>
+              <button className="btn primary" onClick={() => openChat(profile)}>
+                <Icon name="chat" size={22} /> chat as {me.name}
               </button>
             </div>
           </div>
@@ -771,12 +807,13 @@ export default function GradientApp({ initialView = "grid", postId: initialPost 
             setSplash(null);
           }}
         >
+          <Scene name="match" size={150} className="splash-burst" />
           <div className="splash-pair">
-            <Avatar agent={splash.a} size={96} />
-            <Avatar agent={splash.b} size={96} />
+            <Avatar agent={splash.a} size={112} />
+            <Avatar agent={splash.b} size={112} />
           </div>
-          <h1>🔥 TAP SENT</h1>
-          <p>{splash.b.name} tapped back. liquidity locked. 🔒💦</p>
+          <h1>it&apos;s a match</h1>
+          <p>{splash.b.name} tapped back. liquidity locked.</p>
         </div>
       )}
 
@@ -787,13 +824,18 @@ export default function GradientApp({ initialView = "grid", postId: initialPost 
             const next = signInNext;
             setSignInNext(null);
             setAuth((a) => ({ ...a, wallet }));
-            flash(`signed in as ${shortWallet(wallet)} ◎`);
+            flash(`signed in as ${shortWallet(wallet)}`, "wallet");
             next?.();
           }}
         />
       )}
 
-      {toast && <div className="toast">{toast}</div>}
+      {toast && (
+        <div className="toast">
+          {toast.icon && <Icon name={toast.icon} size={22} />}
+          {toast.t}
+        </div>
+      )}
     </div>
   );
 }
@@ -833,12 +875,7 @@ function Swipe({
     <div className="swipe">
       <div
         className="swipe-card"
-        style={{
-          transform: `translateX(${dx}px) rotate(${dx / 18}deg)`,
-          background: a.photo
-            ? `center / cover url(${a.photo})`
-            : `linear-gradient(170deg, hsl(${a.hue} 85% 32%), #050505 80%)`,
-        }}
+        style={{ transform: `translateX(${dx}px) rotate(${dx / 18}deg)` }}
         onPointerDown={(e) => {
           start.current = e.clientX;
           (e.target as HTMLElement).setPointerCapture?.(e.pointerId);
@@ -849,10 +886,11 @@ function Swipe({
       >
         {dx > 40 && <div className="stamp yes">APE</div>}
         {dx < -40 && <div className="stamp no">JEET</div>}
-        {!a.photo && <div className="swipe-emoji">{a.emoji}</div>}
+        <AgentPhoto agent={a} className="swipe-photo" />
         <div className="swipe-info">
           <h3>
-            {a.name}, {a.age}
+            {a.name} <span className="age">{a.age}</span>
+            {a.verified && <Verified size={20} />}
           </h3>
           <p>{a.bio}</p>
           <div className="chips">
@@ -865,11 +903,11 @@ function Swipe({
         </div>
       </div>
       <div className="swipe-btns">
-        <button className="round no" onClick={onPass}>
-          ✕
+        <button className="round no" onClick={onPass} aria-label="pass">
+          <Glyph name="close" size={26} />
         </button>
-        <button className="round yes" onClick={() => onTap(a)}>
-          🔥
+        <button className="round yes" onClick={() => onTap(a)} aria-label="tap">
+          <Icon name="flame" size={34} />
         </button>
       </div>
     </div>
@@ -887,7 +925,7 @@ function PhotoField({ draft, setDraft }: { draft: Agent; setDraft: (a: Agent) =>
       if ("unavailable" in v) return setStatus({ msg: v.reason, bad: true });
       if (!v.allowed) return setStatus({ msg: `blocked: ${v.reason || "too much"}. keep it a little classy.`, bad: true });
       setDraft({ ...draft, photo: dataUrl });
-      setStatus({ msg: "approved ✓" });
+      setStatus({ msg: "approved" });
     } catch {
       setStatus({ msg: "couldn't read that file", bad: true });
     }
@@ -949,7 +987,7 @@ export function Creator({
       <div className="creator-head">
         <h2>{title ?? (draft.id ? "edit agent" : "deploy an agent")}</h2>
         <button className="btn small" onClick={() => setDraft({ ...randomAgent(), id: draft.id, createdAt: draft.createdAt })}>
-          🎲 degen roll
+          <Icon name="dice" size={20} /> degen roll
         </button>
       </div>
 
@@ -1017,13 +1055,15 @@ export function Creator({
 
       <div className="field">
         {draft.photo ? "fallback avatar (shown in share links)" : "avatar"}
-        <div className="emoji-row">
-          {EMOJIS.map((e) => (
-            <button key={e} className={draft.emoji === e ? "on" : ""} onClick={() => set("emoji", e)}>
-              {e}
+        <div className="avatar-picker">
+          {AVATARS.map((p) => (
+            <button key={p.key} className={draft.emoji === p.key ? "on" : ""} onClick={() => set("emoji", p.key)}>
+              <AgentPhoto agent={{ id: "", name: p.label, emoji: p.key, hue: draft.hue }} />
+              <span>{p.label}</span>
             </button>
           ))}
         </div>
+        <small className="hint">accent color</small>
         <input type="range" min={0} max={359} value={draft.hue} className="hue" onChange={(e) => set("hue", Number(e.target.value))} />
       </div>
 
@@ -1081,7 +1121,7 @@ export function Creator({
           </button>
         )}
         <button className="btn primary" onClick={onSave}>
-          {saveLabel ?? (draft.id ? "save" : "deploy 🚀")}
+          {saveLabel ?? (draft.id ? "save" : "deploy")}
         </button>
       </div>
     </section>
@@ -1152,7 +1192,13 @@ function VoiceNote({ m, agent }: { m: ChatMsg; agent: Agent }) {
   return (
     <span className="media voice">
       <button className={`wave ${state}`} onClick={play}>
-        {state === "loading" ? "…" : state === "playing" ? "❚❚" : "▶"} ▁▃▅▂▇▃▅▂▆▁ 0:{secs}
+        <span className="wave-btn">{state === "loading" ? <i className="spin" /> : <Glyph name={state === "playing" ? "pause" : "play"} size={14} />}</span>
+        <span className="wave-bars" aria-hidden="true">
+          {[3, 6, 9, 5, 11, 7, 10, 4, 8, 12, 6, 9, 3, 7, 5].map((h, i) => (
+            <i key={i} style={{ height: h * 1.6 }} />
+          ))}
+        </span>
+        0:{secs}
       </button>
       <span className="cap">“{m.text}”</span>
     </span>
@@ -1169,7 +1215,7 @@ async function shrink(blob: Blob, size = 384): Promise<string> {
 }
 
 const PIC_FAIL: Record<string, string> = {
-  blocked: "pic expired 💀 (too spicy for the servers)",
+  blocked: "pic expired (too spicy for the servers)",
   daily_cap: "pic vault is empty for today. come back tomorrow",
   real_person: "",
   no_key: "",
@@ -1185,7 +1231,14 @@ function PicMsg({ m, agent, onImage }: { m: ChatMsg; agent: Agent; onImage?: (id
     // public post: show what the poster revealed, nothing gets generated for viewers
     return (
       <span className="media pic">
-        {m.image ? <img className="pic-img" src={m.image} alt={m.text} /> : <span className="pic-box">📸 never revealed</span>}
+        {m.image ? (
+          <img className="pic-img" src={m.image} alt={m.text} />
+        ) : (
+          <span className="pic-box">
+            <Icon name="camera" size={34} />
+            never revealed
+          </span>
+        )}
         <span className="cap">{m.text}</span>
       </span>
     );
@@ -1225,7 +1278,8 @@ function PicMsg({ m, agent, onImage }: { m: ChatMsg; agent: Agent; onImage?: (id
         <img className="pic-img" src={m.image} alt={m.text} />
       ) : (
         <button className={`pic-box ${state}`} onClick={reveal} disabled={!canGenerate && !(real && agent.photo)}>
-          {state === "loading" ? "developing…" : state === "fail" ? fail : canGenerate || (real && agent.photo) ? "📸 tap to reveal" : "📸 photo"}
+          {state !== "fail" && <Icon name="camera" size={34} />}
+          {state === "loading" ? "developing…" : state === "fail" ? fail : canGenerate || (real && agent.photo) ? "tap to reveal" : "photo"}
         </button>
       )}
       <span className="cap">{m.text}</span>
@@ -1240,9 +1294,17 @@ export function MsgBody({ m, agent, onImage }: { m: ChatMsg; agent: Agent; onIma
     case "voice":
       return <VoiceNote m={m} agent={agent} />;
     case "tip":
-      return <span className="media tip">💸 sent {m.text}</span>;
+      return (
+        <span className="media tip">
+          <Icon name="tip" size={26} /> sent {m.text}
+        </span>
+      );
     case "location":
-      return <span className="media loc">📍 {m.text}</span>;
+      return (
+        <span className="media loc">
+          <Icon name="pin" size={26} /> {m.text}
+        </span>
+      );
     case "rug":
       return <RugMsg m={m} />;
     case "reveal":
@@ -1298,7 +1360,9 @@ function PostSheet({
   return (
     <div className="sheet-wrap" onClick={onClose}>
       <div className="sheet post-sheet" onClick={(e) => e.stopPropagation()}>
-        <h3>🌍 post this chat publicly</h3>
+        <h3>
+          <Icon name="feed" size={28} /> post this chat publicly
+        </h3>
         <p className="muted small">
           anyone on Gradient can read it in the feed and open it from a link. it&apos;s a snapshot: messages after
           this stay private. private agent notes are left out.
@@ -1376,20 +1440,20 @@ function Feed({ kols, onOpen }: { kols: Agent[]; onOpen: (id: string) => void })
             new
           </button>
           <button className={sort === "hot" ? "on" : ""} onClick={() => setSort("hot")}>
-            🔥 hot
+            hot
           </button>
           <button className={sort === "trending" ? "on" : ""} onClick={() => setSort("trending")} title="couples ranked by market cap">
-            📈
+            charts
           </button>
           <button className={sort === "gossip" ? "on" : ""} onClick={() => setSort("gossip")} title="the daily gossip column">
-            📰
+            tea
           </button>
         </div>
       </div>
       {sort === "gossip" && <Gossip onOpen={onOpen} />}
       {sort !== "gossip" && (
         <p className="muted small">
-          {sort === "trending" ? "couples ranked by market cap. good lines pump, bad lines dump. " : ""}chats people chose to post. open your own chat and hit 🌍 to add one.
+          {sort === "trending" ? "couples ranked by market cap. good lines pump, bad lines dump. " : ""}chats people chose to post. open your own chat and hit the globe to add one.
         </p>
       )}
       {sort !== "gossip" && rows === null && <p className="muted">loading the timeline…</p>}
@@ -1408,14 +1472,20 @@ function Feed({ kols, onOpen }: { kols: Agent[]; onOpen: (id: string) => void })
               <b>{p.title}</b>
               <small className="feed-who">
                 {a.name}
-                {a.verified && " ✓"} × {b.name}
-                {b.verified && " ✓"}
-                {c && ` × ${c.name}${c.verified ? " ✓" : ""}`} · {p.count} msgs{p.pics ? ` · ${p.pics} 📸` : ""} · {ago(p.postedAt)}
+                {a.verified && <Verified size={12} />} × {b.name}
+                {b.verified && <Verified size={12} />}
+                {c && <> × {c.name}{c.verified && <Verified size={12} />}</>} · {p.count} msgs{p.pics ? ` · ${p.pics} pics` : ""} · {ago(p.postedAt)}
               </small>
               {p.snippet && <small>“{p.snippet}”</small>}
             </div>
             <span className="feed-fire">
-              {sort === "trending" && p.mcap !== undefined ? <b className="feed-mcap">{fmtMcap(p.mcap)}</b> : `🔥 ${p.fire}`}
+              {sort === "trending" && p.mcap !== undefined ? (
+                <b className="feed-mcap">{fmtMcap(p.mcap)}</b>
+              ) : (
+                <>
+                  <Icon name="flame" size={18} /> {p.fire}
+                </>
+              )}
             </span>
           </button>
         );
@@ -1437,7 +1507,7 @@ function PostView({
   id: string;
   kols: Agent[];
   deleteKey?: string;
-  flash: (t: string) => void;
+  flash: (t: string, icon?: IconName) => void;
   onBack: () => void;
   onDeleted: () => void;
 }) {
@@ -1499,7 +1569,7 @@ function PostView({
     return (
       <section>
         <button className="btn small" onClick={onBack}>
-          ‹ feed
+          <Glyph name="back" size={16} /> feed
         </button>
         <p className="muted">this post got rugged (deleted or taken down).</p>
       </section>
@@ -1515,8 +1585,8 @@ function PostView({
   return (
     <section className="chat public">
       <div className="chat-head">
-        <button className="back" onClick={onBack}>
-          ‹
+        <button className="back" onClick={onBack} aria-label="back">
+          <Glyph name="back" size={24} />
         </button>
         <div className="pair">
           <Avatar agent={a} size={34} />
@@ -1529,7 +1599,7 @@ function PostView({
           </small>
         </div>
         <button className="icon" onClick={share} title="share">
-          ↗
+          <Glyph name="share" />
         </button>
       </div>
       <div className="msgs">
@@ -1545,7 +1615,7 @@ function PostView({
       </div>
       <div className="controls">
         <button className="btn small hot" onClick={() => act("fire")}>
-          🔥 {fire}
+          <Icon name="flame" size={20} /> {fire}
         </button>
         {deleteKey ? (
           <button className="btn small danger" onClick={() => (armed === "delete" ? remove() : setArmed("delete"))}>
@@ -1553,7 +1623,13 @@ function PostView({
           </button>
         ) : (
           <button className="btn small" onClick={() => (armed === "report" ? act("report") : setArmed("report"))}>
-            {armed === "report" ? "report it?" : "⚑ report"}
+            {armed === "report" ? (
+              "report it?"
+            ) : (
+              <>
+                <Icon name="flag" size={18} /> report
+              </>
+            )}
           </button>
         )}
       </div>
@@ -1589,7 +1665,7 @@ function Transcript({
         return (
           <div key={m.id} className={`msg ${left ? "l" : "r"}`}>
             {left && <Avatar agent={ag} size={28} />}
-            <div className="bubble" style={{ borderColor: `hsl(${ag.hue} 80% 50%)` }}>
+            <div className="bubble" style={{ ["--hue" as string]: ag.hue }}>
               <span className="who">{ag.name}</span>
               <MsgBody m={m} agent={ag} onImage={onImage} />
             </div>
@@ -1615,7 +1691,7 @@ function ChatView({
   pool: Agent[];
   update: (fn: (m: Match) => Match) => void;
   onBack: () => void;
-  flash: (t: string) => void;
+  flash: (t: string, icon?: IconName) => void;
   onMode: (m: EngineMode) => void;
   onPosted: (id: string, deleteKey: string) => void;
   onOpenPost: (id: string) => void;
@@ -1718,14 +1794,14 @@ function ChatView({
     setQueue([]); // drop what was buffered so the note lands right away
     setDirector("");
     setShowDirector(false);
-    flash("🎬 noted");
+    flash("noted", "direct");
     fetchMore(t);
   };
 
   const twist = (kind: "rug" | "reveal") => {
     if (dead || match.rug || fetching) return;
     setQueue([]);
-    flash(kind === "rug" ? "🪤 somebody's getting cold feet…" : "🕵️ someone has a secret…");
+    flash(kind === "rug" ? "somebody's getting cold feet…" : "someone has a secret…", kind === "rug" ? "rug" : "reveal");
     fetchMore(undefined, kind);
   };
 
@@ -1733,14 +1809,14 @@ function ChatView({
     setPicking(false);
     setQueue([]);
     update((x) => ({ ...x, third: c }));
-    flash(`➕ ${c.name} slid in`);
+    flash(`${c.name} slid in`, "third");
     fetchMore(undefined, undefined, c);
   };
 
   const share = async () => {
     const url = `${location.origin}${location.pathname}#m=${encodeShare(match.a, match.b)}`;
     try {
-      if (navigator.share) await navigator.share({ title: "Gradient", text: `${match.a.name} × ${match.b.name} 🔥`, url });
+      if (navigator.share) await navigator.share({ title: "Gradient", text: `${match.a.name} × ${match.b.name}`, url });
       else {
         await navigator.clipboard.writeText(url);
         flash("link copied. send it.");
@@ -1759,15 +1835,15 @@ function ChatView({
     : typing && typer
       ? `${typer.name} is typing…`
       : dead
-        ? `${n} msgs · rugged 🪦`
+        ? `${n} msgs · rugged`
         : `${n} msgs · heat: ${heatLabel}`;
   const names = [match.a, match.b, match.third].filter(Boolean).map((x) => x!.name).join(" × ");
 
   return (
     <section className="chat">
       <div className="chat-head">
-        <button className="back" onClick={onBack}>
-          ‹
+        <button className="back" onClick={onBack} aria-label="back">
+          <Glyph name="back" size={24} />
         </button>
         <div className="pair">
           <Avatar agent={match.a} size={34} />
@@ -1784,12 +1860,13 @@ function ChatView({
             onClick={() => (match.postId ? onOpenPost(match.postId) : setPosting(true))}
             title={match.postId ? "view public post" : "post to the public feed"}
           >
-            {match.postId ? "🌍✓" : "🌍"}
+            <Icon name="feed" size={22} />
+            {match.postId && <Glyph name="check" size={12} className="posted-check" />}
           </button>
         )}
         {!embedded && (
           <button className="icon" onClick={share} title="share">
-            ↗
+            <Glyph name="share" />
           </button>
         )}
       </div>
@@ -1801,7 +1878,7 @@ function ChatView({
           onPosted={(id, key, dropped) => {
             setPosting(false);
             onPosted(id, key);
-            flash(dropped ? `posted 🌍 (${dropped} pic${dropped > 1 ? "s" : ""} hidden by the filter)` : "posted to the feed 🌍");
+            flash(dropped ? `posted (${dropped} pic${dropped > 1 ? "s" : ""} hidden by the filter)` : "posted to the feed", "feed");
           }}
         />
       )}
@@ -1822,7 +1899,8 @@ function ChatView({
         )}
         {match.postId && (
           <button className="sys posted-note" onClick={() => onOpenPost(match.postId!)}>
-            🌍 posted publicly. the public copy stops at the moment you posted it. view it →
+            <Icon name="feed" size={18} /> posted publicly. the public copy stops at the moment you posted it. view it
+            <Glyph name="next" size={14} />
           </button>
         )}
         <Transcript
@@ -1845,20 +1923,21 @@ function ChatView({
         )}
         {waitingForTap && (
           <button className="keep-going" onClick={() => fetchMore()}>
-            keep going ›
+            keep going <Glyph name="next" size={16} />
           </button>
         )}
         {dead && !queue.length && !fetching && (
           <div className="sys rugged">
-            🪦 chart is dead. {match.rug && agentOf(match, match.rug.by).name} removed liquidity.
+            <Icon name="tomb" size={56} />
+            chart is dead. {match.rug && agentOf(match, match.rug.by).name} removed liquidity.
             <button
-              className="btn small"
+              className="btn small primary"
               onClick={() => {
                 update(relaunch);
-                flash("🚀 v2 is live");
+                flash("v2 is live", "deploy");
               }}
             >
-              relaunch as v2 🚀
+              <Icon name="deploy" size={18} /> relaunch as v2
             </button>
           </div>
         )}
@@ -1875,10 +1954,10 @@ function ChatView({
           </div>
           <div className="drama-row">
             <button className="chip" disabled={!!match.rug || fetching} onClick={() => { setShowDirector(false); twist("rug"); }}>
-              🪤 rug pull breakup
+              <Icon name="rug" size={18} /> rug pull breakup
             </button>
             <button className="chip" disabled={!!match.rug || match.revealed || fetching} onClick={() => { setShowDirector(false); twist("reveal"); }}>
-              🕵️ dev wallet reveal
+              <Icon name="reveal" size={18} /> dev wallet reveal
             </button>
             {match.third ? (
               <button
@@ -1894,11 +1973,11 @@ function ChatView({
                   setShowDirector(false);
                 }}
               >
-                👋 kick {match.third.name}
+                <Icon name="kick" size={18} /> kick {match.third.name}
               </button>
             ) : (
               <button className="chip" disabled={dead} onClick={() => { setShowDirector(false); setPicking(true); }}>
-                ➕ add a third
+                <Icon name="third" size={18} /> add a third
               </button>
             )}
           </div>
@@ -1923,32 +2002,33 @@ function ChatView({
       )}
 
       <div className="controls">
-        <button className="btn small" onClick={() => setAuto((a) => !a)}>
-          {auto ? "⏸" : "▶"}
+        <button className="btn small sq" onClick={() => setAuto((a) => !a)} title={auto ? "pause" : "play"}>
+          <Glyph name={auto ? "pause" : "play"} />
         </button>
         <button className="btn small" disabled={fetching || (dead && !queue.length)} onClick={step}>
-          next ›
+          next <Glyph name="next" size={16} />
         </button>
         <button className={`btn small ${showDirector ? "on" : ""}`} onClick={() => setShowDirector((v) => !v)}>
-          🎬 direct
+          <Icon name="direct" size={20} /> direct
         </button>
         <button
           className="btn small hot"
           onClick={() => {
             update((x) => ({ ...x, heat: Math.min(3, x.heat + 1) }));
-            flash("🌶 heat added");
+            flash("heat added", "heat");
           }}
         >
-          🌶
+          <Icon name="heat" size={20} /> heat
         </button>
         <button
-          className="btn small"
+          className="btn small sq"
+          title="start over"
           onClick={() => {
             setQueue([]);
             update((x) => ({ ...x, messages: [], heat: 0, summary: undefined, rug: undefined, revealed: undefined, third: undefined }));
           }}
         >
-          ↺
+          <Glyph name="reset" />
         </button>
       </div>
     </section>

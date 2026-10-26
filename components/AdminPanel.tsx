@@ -2,6 +2,8 @@
 
 import { useEffect, useState } from "react";
 import { Creator, blankAgent } from "@/components/GradientApp";
+import { Verified } from "@/components/Art";
+import { ART_NAMES, artUrl } from "@/lib/art";
 import type { Agent } from "@/lib/types";
 
 // Site owner's page: prebuild private KOL drafts and grab invite links to DM them.
@@ -155,7 +157,7 @@ export default function AdminPanel() {
         <div key={r.handle} className="row-card">
           <div className="row-main">
             <b>
-              @{r.handle} {live.includes(r.handle) && <span className="check">✓</span>}
+              @{r.handle} {live.includes(r.handle) && <Verified size={14} />}
             </b>
             <small>{r.agent.name} · {r.agent.bio || "no bio"}</small>
             <div className="row-actions">
@@ -203,7 +205,7 @@ export default function AdminPanel() {
                 {p.title} {p.hidden && <span className="err">hidden</span>}
               </b>
               <small>
-                ⚑ {p.reports} · 🔥 {p.fire} · {new Date(p.postedAt).toLocaleString()}
+                {p.reports} reports · {p.fire} fire · {new Date(p.postedAt).toLocaleString()}
               </small>
               <div className="row-actions">
                 <a className="btn small" href={`/p/${p.id}`} target="_blank" rel="noreferrer">
@@ -221,6 +223,55 @@ export default function AdminPanel() {
             </div>
           </div>
         ))}
+
+      <ArtPanel />
     </section>
+  );
+}
+
+// Every generated picture the UI uses. Each is made the first time someone needs it; this warms them all up
+// in one go (one at a time, so OpenAI's rate limit doesn't bite) and lets you eyeball the set.
+function ArtPanel() {
+  const [status, setStatus] = useState<Record<string, "ok" | "fail" | "busy">>({});
+  const [running, setRunning] = useState(false);
+  const [bust, setBust] = useState(0);
+
+  const warm = async () => {
+    setRunning(true);
+    for (const name of ART_NAMES) {
+      if (status[name] === "ok") continue;
+      setStatus((s) => ({ ...s, [name]: "busy" }));
+      let ok = false;
+      for (let i = 0; i < 6 && !ok; i++) {
+        const res = await fetch(artUrl(name)).catch(() => null);
+        ok = !!res?.ok;
+        if (!ok && res && res.status !== 503) break;
+        if (!ok) await new Promise((r) => setTimeout(r, 8000));
+      }
+      setStatus((s) => ({ ...s, [name]: ok ? "ok" : "fail" }));
+    }
+    setRunning(false);
+    setBust((b) => b + 1);
+  };
+
+  return (
+    <>
+      <h2>generated art</h2>
+      <p className="muted small">
+        {ART_NAMES.length} pictures (icons, portraits, illustrations), generated once with OPENAI_API_KEY and cached
+        for good. To redo one, change its prompt in lib/art.ts.
+      </p>
+      <button className="btn primary wide" disabled={running} onClick={warm}>
+        {running ? "generating… keep this tab open" : "generate anything missing"}
+      </button>
+      <div className="art-grid">
+        {ART_NAMES.map((n) => (
+          <figure key={n} className={status[n] ?? ""}>
+            <img src={artUrl(n) + (bust ? `&r=${bust}` : "")} alt={n} loading="lazy" />
+            <figcaption>{n}</figcaption>
+          </figure>
+        ))}
+      </div>
+    </>
   );
 }

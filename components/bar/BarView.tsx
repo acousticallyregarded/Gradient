@@ -7,15 +7,17 @@ import { uid } from "@/lib/storage";
 import type { Agent, ChatMsg, Match } from "@/lib/types";
 import { Avatar, DIRECTOR_PRESETS, MsgBody } from "@/components/GradientApp";
 import { Chart, DramaFx } from "@/components/Drama";
+import { AgentPhoto, Glyph, Icon, Verified } from "@/components/Art";
+import type { IconName } from "@/lib/art";
 import { agentOf, relaunch } from "@/lib/drama";
 import { useEpisodes } from "./useEpisodes";
 import type { BarWorld } from "./world";
 
 const BARTENDER = "bartender";
 const DRINKS = [
-  ["🍹 a Rug Pull", "one Rug Pull. tastes sweet, then it's gone."],
-  ["🥃 Exit Liquidity, neat", "Exit Liquidity, neat. drink it before someone else does."],
-  ["🍸 the Slippage Special", "Slippage Special. you ordered a full one, you'll get about half."],
+  ["a Rug Pull", "one Rug Pull. tastes sweet, then it's gone."],
+  ["Exit Liquidity, neat", "Exit Liquidity, neat. drink it before someone else does."],
+  ["the Slippage Special", "Slippage Special. you ordered a full one, you'll get about half."],
 ] as const;
 
 // Opening lines when you walk up, before any model call. Free, and in character from the profile.
@@ -43,7 +45,7 @@ export default function BarView({
   setAsId: (id: string) => void;
   matches: Match[];
   setMatches: (fn: (prev: Match[]) => Match[]) => void;
-  flash: (t: string) => void;
+  flash: (t: string, icon?: IconName) => void;
   onMode: (m: EngineMode) => void;
   onProfile: (a: Agent) => void;
   onLog: (matchId: string) => void;
@@ -115,7 +117,7 @@ export default function BarView({
     const existing = matches.find((m) => m.a.id === me.id && m.b.id === other.id);
     const m: Match = existing ?? { id: uid(), a: me, b: other, messages: [], heat: 0, createdAt: Date.now() };
     if (!existing) setMatches((prev) => [m, ...prev]);
-    if (tapped) flash(`🔥 tap sent. ${other.name} tapped back.`);
+    if (tapped) flash(`tap sent. ${other.name} tapped back.`, "flame");
     setEncounter(null);
     setDateId(m.id);
   });
@@ -125,7 +127,10 @@ export default function BarView({
   return (
     <div className="bar-view">
       <div className="bar-stage" ref={host} />
-      {!loaded && !failed && <div className="bar-loading">walking in… 🪩</div>}
+      {!loaded && !failed && <div className="bar-loading">
+          <Icon name="bar" size={64} />
+          walking in…
+        </div>}
       {failed && (
         <div className="bar-loading">
           your browser won't render 3D here. the grid still works.
@@ -179,10 +184,10 @@ export default function BarView({
                   setEncounter(null);
                 }}
               >
-                {label}
+                <Icon name="cocktail" size={22} /> {label}
               </button>
             ))}
-            <button onClick={() => setEncounter(null)}>↩ just looking</button>
+            <button onClick={() => setEncounter(null)}>just looking</button>
           </div>
         </div>
       )}
@@ -196,7 +201,7 @@ export default function BarView({
           <div className="vn-box" style={{ ["--hue" as string]: who.hue }}>
             <div className="vn-name">
               {who.name}
-              {who.verified && <span className="check">✓</span>}
+              {who.verified && <Verified size={14} />}
               <small>
                 {who.age} · {who.tribe ?? "anon"} · {who.position ?? "?"}
               </small>
@@ -205,11 +210,15 @@ export default function BarView({
           </div>
           <div className="vn-choices">
             <button className="hot" onClick={() => startDate(who, true)}>
-              🔥 tap
+              <Icon name="flame" size={22} /> tap
             </button>
-            <button onClick={() => startDate(who, false)}>💬 slide into the booth</button>
-            <button onClick={() => onProfile(who)}>👀 check the profile</button>
-            <button onClick={() => setEncounter(null)}>↩ walk away</button>
+            <button onClick={() => startDate(who, false)}>
+              <Icon name="chat" size={22} /> slide into the booth
+            </button>
+            <button onClick={() => onProfile(who)}>
+              <Icon name="eyes" size={22} /> check the profile
+            </button>
+            <button onClick={() => setEncounter(null)}>walk away</button>
           </div>
         </div>
       )}
@@ -233,15 +242,8 @@ export default function BarView({
 function Portrait({ agent, dim, speaking }: { agent: Agent; dim?: boolean; speaking?: boolean }) {
   return (
     <div className={`vn-portrait ${dim ? "dim" : ""} ${speaking ? "speaking" : ""}`}>
-      <div
-        className="vn-portrait-img"
-        style={{
-          background: agent.photo
-            ? `center / cover url(${agent.photo})`
-            : `radial-gradient(circle at 50% 35%, hsl(${agent.hue} 90% 55%), hsl(${(agent.hue + 120) % 360} 80% 22%) 75%)`,
-        }}
-      >
-        {!agent.photo && <span>{agent.emoji}</span>}
+      <div className="vn-portrait-img">
+        <AgentPhoto agent={agent} />
       </div>
     </div>
   );
@@ -281,7 +283,7 @@ function DateScene({
   match: Match;
   crowd: Agent[];
   update: (fn: (m: Match) => Match) => void;
-  flash: (t: string) => void;
+  flash: (t: string, icon?: IconName) => void;
   onMode: (m: EngineMode) => void;
   onLeave: () => void;
   onLog: () => void;
@@ -334,18 +336,18 @@ function DateScene({
     <div className="vn date">
       <div className="vn-top">
         <button className="btn small" onClick={onLeave}>
-          ‹ leave
+          <Glyph name="back" size={16} /> leave
         </button>
         <span className="vn-heat">
           <b>{cast.map((x) => x.name).join(" × ")}</b>
-          {match.messages.length} lines · {dead ? "rugged 🪦" : `heat: ${heatLabel}`}
+          {match.messages.length} lines · {dead ? "rugged" : `heat: ${heatLabel}`}
         </span>
         <Chart match={match} compact />
         <button className="btn small" onClick={onLog} title="open the full chat log">
           log
         </button>
         <button className={`btn small ${auto ? "on" : ""}`} onClick={() => setAuto((v) => !v)} title="auto-advance">
-          {auto ? "⏸" : "▶ auto"}
+          <Glyph name={auto ? "pause" : "play"} size={14} /> auto
         </button>
       </div>
 
@@ -375,10 +377,10 @@ function DateScene({
           </div>
           <div className="drama-row">
             <button className="chip" disabled={!!match.rug || fetching} onClick={() => { setShowDirector(false); twist("rug"); }}>
-              🪤 rug pull breakup
+              <Icon name="rug" size={18} /> rug pull breakup
             </button>
             <button className="chip" disabled={!!match.rug || match.revealed || fetching} onClick={() => { setShowDirector(false); twist("reveal"); }}>
-              🕵️ dev wallet reveal
+              <Icon name="reveal" size={18} /> dev wallet reveal
             </button>
           </div>
           <form
@@ -434,7 +436,7 @@ function DateScene({
       <div className="vn-controls">
         {waiting && (
           <button className="keep-going" onClick={more}>
-            keep going ›
+            keep going <Glyph name="next" size={16} />
           </button>
         )}
         {dead && !queue.length && (
@@ -442,31 +444,31 @@ function DateScene({
             className="keep-going"
             onClick={() => {
               update(relaunch);
-              flash("🚀 v2 is live");
+              flash("v2 is live", "deploy");
             }}
           >
-            🪦 rugged. relaunch v2 🚀
+            <Icon name="deploy" size={18} /> rugged. relaunch v2
           </button>
         )}
         {!match.third && patrons.length > 0 && !dead && (
           <button className="btn small" disabled={fetching} onClick={() => cutIn(randomPatron())} title="a bar patron cuts in">
-            🍸 cut in
+            <Icon name="cocktail" size={18} /> cut in
           </button>
         )}
         <button className={`btn small ${showDirector ? "on" : ""}`} onClick={() => setShowDirector((v) => !v)}>
-          🎬 direct
+          <Icon name="direct" size={18} /> direct
         </button>
         <button
           className="btn small hot"
           onClick={() => {
             update((x) => ({ ...x, heat: Math.min(3, x.heat + 1) }));
-            flash("🌶 heat added");
+            flash("heat added", "heat");
           }}
         >
-          🌶
+          <Icon name="heat" size={18} /> heat
         </button>
-        <button className="btn small" onClick={reset} title="start over">
-          ↺
+        <button className="btn small sq" onClick={reset} title="start over">
+          <Glyph name="reset" />
         </button>
       </div>
     </div>

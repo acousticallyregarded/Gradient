@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { chartOf, fmtMcap, GRADUATE_MCAP, LAUNCH_MCAP, mcapOf, tickerOf } from "@/lib/drama";
 import type { Agent, ChatMsg, Match } from "@/lib/types";
 import { Avatar } from "@/components/GradientApp";
+import { Icon, Verified } from "@/components/Art";
 
 // Bonding curve rizz: the couple's coin, pumping on good lines and dumping on bad ones.
 export function Chart({ match, compact }: { match: Pick<Match, "a" | "b" | "third" | "messages" | "rug">; compact?: boolean }) {
@@ -24,7 +25,7 @@ export function Chart({ match, compact }: { match: Pick<Match, "a" | "b" | "thir
       return `${x.toFixed(1)},${y.toFixed(1)}`;
     })
     .join(" ");
-  const status = match.rug ? "rugged 🪦" : mcap >= GRADUATE_MCAP ? "graduated 🎓" : `${up ? "▲" : "▼"} ${Math.abs(change).toFixed(0)}%`;
+  const status = match.rug ? "rugged" : mcap >= GRADUATE_MCAP ? "graduated" : `${up ? "▲" : "▼"} ${Math.abs(change).toFixed(0)}%`;
   return (
     <div className={`chart ${up && !match.rug ? "up" : "down"} ${compact ? "compact" : ""}`} title="the couple's coin: good lines pump it, bad lines dump it">
       {!compact && <b className="chart-ticker">{tickerOf(match.a, match.b, match.third)}</b>}
@@ -58,7 +59,8 @@ export function DramaFx({ msg, agent, onDone }: { msg: ChatMsg; agent: Agent; on
     );
   return (
     <div className="fx reveal" onClick={onDone}>
-      <h1>🚨 DEV WALLET REVEALED 🚨</h1>
+      <Icon name="siren" size={72} />
+      <h1>DEV WALLET REVEALED</h1>
       <Avatar agent={agent} size={80} />
       <p>{agent.name} has a confession.</p>
     </div>
@@ -69,7 +71,9 @@ export function DramaFx({ msg, agent, onDone }: { msg: ChatMsg; agent: Agent; on
 export function RugMsg({ m }: { m: ChatMsg }) {
   return (
     <span className="media rug-msg">
-      <span className="rug-tag">🪤 pulled liquidity</span>
+      <span className="rug-tag">
+        <Icon name="rug" size={16} /> pulled liquidity
+      </span>
       {m.text}
     </span>
   );
@@ -78,7 +82,9 @@ export function RugMsg({ m }: { m: ChatMsg }) {
 export function RevealMsg({ m }: { m: ChatMsg }) {
   return (
     <span className="media reveal-msg">
-      <span className="reveal-tag">🚨 dev wallet reveal</span>
+      <span className="reveal-tag">
+        <Icon name="siren" size={16} /> dev wallet reveal
+      </span>
       {m.text}
     </span>
   );
@@ -89,7 +95,9 @@ export function ThirdPicker({ pool, onPick, onClose }: { pool: Agent[]; onPick: 
   return (
     <div className="sheet-wrap" onClick={onClose}>
       <div className="sheet third-sheet" onClick={(e) => e.stopPropagation()}>
-        <h3>➕ add a third</h3>
+        <h3>
+          <Icon name="third" size={28} /> add a third
+        </h3>
         <p className="muted small">pick who slides into this chat. all three agents get lines from here on.</p>
         <div className="third-list">
           {pool.map((a) => (
@@ -98,7 +106,7 @@ export function ThirdPicker({ pool, onPick, onClose }: { pool: Agent[]; onPick: 
               <div className="row-main">
                 <b>
                   {a.name}
-                  {a.verified && " ✓"}
+                  {a.verified && <Verified size={13} />}
                 </b>
                 <small>{a.bio}</small>
               </div>
@@ -120,7 +128,9 @@ export function TrendingBoard({ matches, onOpen }: { matches: Match[]; onOpen: (
   if (!top.length) return null;
   return (
     <div className="trending">
-      <small>📈 trending couples</small>
+      <small>
+        <Icon name="trending" size={18} /> trending couples
+      </small>
       {top.map(({ m }, i) => (
         <button key={m.id} className="trend-row" onClick={() => onOpen(m.id)}>
           <span className="trend-rank">#{i + 1}</span>
@@ -154,7 +164,9 @@ export function Gossip({ onOpen }: { onOpen: (id: string) => void }) {
   if (!col) return <p className="muted">no tea yet. post some chats to the feed and the column writes itself tomorrow.</p>;
   return (
     <article className="gossip">
-      <small className="gossip-date">📰 the liquidity pool · {col.date}</small>
+      <small className="gossip-date">
+        <Icon name="gossip" size={20} /> the liquidity pool · {col.date}
+      </small>
       <h3>{col.headline}</h3>
       <p className="gossip-intro">{col.intro}</p>
       {col.items.map((it) => (

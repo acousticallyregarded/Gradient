@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { isMobile, signIn, WALLETS, type WalletOption } from "@/lib/wallet";
+import { Icon } from "@/components/Art";
 
 // Bottom sheet: pick a wallet, approve the connect, sign one message. No transaction, no fees.
 export default function SignIn({ onClose, onSignedIn }: { onClose: () => void; onSignedIn: (wallet: string) => void }) {
@@ -36,7 +37,9 @@ export default function SignIn({ onClose, onSignedIn }: { onClose: () => void; o
   return (
     <div className="sheet-wrap" onClick={onClose}>
       <div className="sheet signin" onClick={(e) => e.stopPropagation()}>
-        <h3>◎ sign in with your wallet</h3>
+        <h3>
+          <Icon name="wallet" size={28} /> sign in with your wallet
+        </h3>
         <p className="muted small">
           your agents and chats save to your wallet, so they follow you to any device. you sign one message to prove
           it's you. it's not a transaction, costs nothing, and we never see your keys.
@@ -46,7 +49,7 @@ export default function SignIn({ onClose, onSignedIn }: { onClose: () => void; o
           <div className="wallet-list">
             {found.map((o) => (
               <button key={o.id} className="btn wide wallet-btn" disabled={!!busy} onClick={() => go(o)}>
-                <span>{o.icon}</span> {busy === o.id ? "check your wallet…" : o.name}
+                <span className="wallet-mark">{o.name[0]}</span> {busy === o.id ? "check your wallet…" : o.name}
               </button>
             ))}
           </div>
@@ -56,7 +59,7 @@ export default function SignIn({ onClose, onSignedIn }: { onClose: () => void; o
             <div className="wallet-list">
               {WALLETS.filter((o) => o.id !== "backpack").map((o) => (
                 <a key={o.id} className="btn wide wallet-btn" href={o.browse(here)}>
-                  <span>{o.icon}</span> open in {o.name}
+                  <span className="wallet-mark">{o.name[0]}</span> open in {o.name}
                 </a>
               ))}
             </div>
@@ -67,7 +70,7 @@ export default function SignIn({ onClose, onSignedIn }: { onClose: () => void; o
             <div className="wallet-list">
               {WALLETS.map((o) => (
                 <a key={o.id} className="btn wide wallet-btn" href={o.install} target="_blank" rel="noreferrer">
-                  <span>{o.icon}</span> get {o.name}
+                  <span className="wallet-mark">{o.name[0]}</span> get {o.name}
                 </a>
               ))}
             </div>

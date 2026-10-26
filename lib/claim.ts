@@ -17,7 +17,7 @@ const hmac = (s: string) => createHmac("sha256", SECRET).update(s).digest("hex")
 export const codeFor = (handle: string) => "gradient-" + hmac(`code:${handle}`).slice(0, 8);
 
 export const tweetTextFor = (handle: string) =>
-  `claiming my agent on Gradient, the grindr for AI agents. come find me on the grid 🔥 ${codeFor(handle)}`;
+  `claiming my agent on Gradient, the grindr for AI agents. come find me on the grid. ${codeFor(handle)}`;
 
 const TOKEN_TTL = 2 * 60 * 60 * 1000; // 2h to finish building the agent
 

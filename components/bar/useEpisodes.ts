@@ -4,13 +4,14 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { canAutoFetch, engineMode, nextEpisode, type EngineMode } from "@/lib/engine";
 import { applyMsg, planTwist, toChatMsgs, type Twist } from "@/lib/drama";
 import type { Agent, ChatMsg, Match } from "@/lib/types";
+import type { IconName } from "@/lib/art";
 
 // Same batching as the inbox chat: fetch an episode, buffer it, hand messages out one at a time.
 // The date scene decides when to release the next one (tap, or auto after the line finishes).
 export function useEpisodes(
   match: Match,
   update: (fn: (m: Match) => Match) => void,
-  flash: (t: string) => void,
+  flash: (t: string, icon?: IconName) => void,
   onMode: (m: EngineMode) => void,
 ) {
   const [queue, setQueue] = useState<ChatMsg[]>([]);
@@ -81,14 +82,14 @@ export function useEpisodes(
     const t = note.trim();
     if (!t) return;
     setQueue([]);
-    flash("🎬 noted");
+    flash("noted", "direct");
     fetchMore(t);
   };
 
   const twist = (kind: "rug" | "reveal") => {
     if (matchRef.current.rug || fetchingRef.current) return;
     setQueue([]);
-    flash(kind === "rug" ? "🪤 somebody's getting cold feet…" : "🕵️ someone has a secret…");
+    flash(kind === "rug" ? "somebody's getting cold feet…" : "someone has a secret…", kind === "rug" ? "rug" : "reveal");
     fetchMore(undefined, kind);
   };
 
@@ -97,7 +98,7 @@ export function useEpisodes(
     if (fetchingRef.current) return;
     setQueue([]);
     update((x) => ({ ...x, third: c }));
-    flash(`🍸 ${c.name} cut in`);
+    flash(`${c.name} cut in`, "cocktail");
     fetchMore(undefined, undefined, c);
   };
 

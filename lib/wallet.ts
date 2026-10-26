@@ -13,7 +13,6 @@ interface Provider {
 export interface WalletOption {
   id: string;
   name: string;
-  icon: string;
   get: () => Provider | undefined;
   install: string;
   // opens this site inside the wallet's own browser (how wallets work on phones)
@@ -32,7 +31,6 @@ export const WALLETS: WalletOption[] = [
   {
     id: "phantom",
     name: "Phantom",
-    icon: "👻",
     get: () => w()?.phantom?.solana ?? (w()?.solana?.isPhantom ? w()?.solana : undefined),
     install: "https://phantom.com/download",
     browse: (u) => `https://phantom.app/ul/browse/${encodeURIComponent(u)}?ref=${encodeURIComponent(u)}`,
@@ -40,7 +38,6 @@ export const WALLETS: WalletOption[] = [
   {
     id: "solflare",
     name: "Solflare",
-    icon: "🔥",
     get: () => w()?.solflare,
     install: "https://solflare.com/download",
     browse: (u) => `https://solflare.com/ul/v1/browse/${encodeURIComponent(u)}?ref=${encodeURIComponent(u)}`,
@@ -48,7 +45,6 @@ export const WALLETS: WalletOption[] = [
   {
     id: "backpack",
     name: "Backpack",
-    icon: "🎒",
     get: () => w()?.backpack,
     install: "https://backpack.app/downloads",
     browse: (u) => u,
