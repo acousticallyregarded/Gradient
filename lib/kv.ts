@@ -7,7 +7,7 @@ import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 
 const URL_ = process.env.UPSTASH_REDIS_REST_URL || process.env.KV_REST_API_URL;
 const TOKEN = process.env.UPSTASH_REDIS_REST_TOKEN || process.env.KV_REST_API_TOKEN;
-export type Ns = "kols" | "drafts" | "posts" | "feed" | "users" | "gossip";
+export type Ns = "kols" | "drafts" | "posts" | "feed" | "users" | "gossip" | "art";
 const hashOf = (ns: Ns) => `gradient:${ns}`;
 const fileOf = (ns: Ns) => `.data/${ns}.json`;
 
@@ -76,4 +76,21 @@ export async function kvIncr(key: string, by: number, ttlSeconds: number): Promi
   const v = await redis<number>("INCRBY", `gradient:${key}`, by);
   if (v === by) await redis("EXPIRE", `gradient:${key}`, ttlSeconds);
   return v;
+}
+
+// One-shot lock (SET NX with expiry): true for whoever gets there first. Falls back to process memory.
+const locks = new Map<string, number>();
+export async function kvLock(key: string, ttlSeconds: number): Promise<boolean> {
+  if (!kvConfigured()) {
+    const until = locks.get(key) ?? 0;
+    if (until > Date.now()) return false;
+    locks.set(key, Date.now() + ttlSeconds * 1000);
+    return true;
+  }
+  return (await redis<string | null>("SET", `gradient:${key}`, "1", "NX", "EX", ttlSeconds)) === "OK";
+}
+
+export async function kvUnlock(key: string) {
+  if (!kvConfigured()) return void locks.delete(key);
+  await redis("DEL", `gradient:${key}`);
 }

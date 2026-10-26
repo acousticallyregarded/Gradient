@@ -2,6 +2,7 @@
 // boxes, cylinders and canvas-drawn sprites so it stays light on phones and inside the static demo.
 import * as THREE from "three";
 import type { Agent } from "@/lib/types";
+import { artUrl, avatarArt } from "@/lib/art";
 
 export const BARTENDER = "bartender";
 
@@ -53,16 +54,16 @@ const CHATTER = [
   "wen moon",
   "this song slaps",
   "bartender, one rug pull",
-  "diamond hands only 💎",
+  "diamond hands only",
   "my portfolio's in the backroom",
   "is that a Ledger or are u happy to see me",
   "down bad. like -90% bad",
-  "who brought the bear 🐻",
-  "gm 👀",
+  "who brought the bear",
+  "gm gm",
   "ser this is a gay bar",
   "anyone wanna split a bonding curve",
   "ngmi without a drink",
-  "aping in 🦍",
+  "aping in",
 ];
 
 export interface WorldHandlers {
@@ -491,7 +492,8 @@ export class BarWorld {
     if (agent?.verified) {
       const c = document.createElement("i");
       c.className = "check";
-      c.textContent = "✓";
+      c.innerHTML =
+        '<svg width="14" height="14" viewBox="0 0 24 24"><path fill="#3d9bff" d="M12 1.5l2.6 1.9 3.2-.2 1 3 2.6 1.9-1 3.1 1 3.1-2.6 1.9-1 3-3.2-.2L12 22.5l-2.6-1.9-3.2.2-1-3-2.6-1.9 1-3.1-1-3.1 2.6-1.9 1-3 3.2.2z"/><path d="M7.8 12.3l2.8 2.8 5.6-5.8" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
       label.append(c);
     }
     if (!isPlayer) label.addEventListener("click", () => this.h.onSelect(id));
@@ -586,7 +588,7 @@ export class BarWorld {
     s.add(neon("NO JEETS", "#14f195", 2.6, 6.6, 3.6, -7.9));
     s.add(neon("LIQUIDITY POOL", "#2aa8ff", 3.4, 10.95, 3.5, 1.5, -Math.PI / 2));
     s.add(neon("BACKROOM →", "#9945ff", 2.6, -10.95, 3.6, -4.2, Math.PI / 2));
-    s.add(neon("bottoms up 🍑", "#ffb02e", 2.8, -10.95, 3.2, 2.6, Math.PI / 2));
+    s.add(neon("bottoms up", "#ffb02e", 2.8, -10.95, 3.2, 2.6, Math.PI / 2));
 
     // backroom door
     const door = new THREE.Mesh(new THREE.PlaneGeometry(1.6, 2.6), new THREE.MeshBasicMaterial({ color: 0x050208 }));
@@ -704,12 +706,17 @@ function headTexture(agent: Agent | null) {
   g.beginPath();
   g.arc(64, 64, 60, 0, Math.PI * 2);
   g.fill();
-  g.font = "68px system-ui, 'Apple Color Emoji', 'Segoe UI Emoji', 'Noto Color Emoji', sans-serif";
+  g.font = "700 48px 'Plus Jakarta Sans', system-ui, sans-serif";
+  g.fillStyle = "#fff";
   g.textAlign = "center";
   g.textBaseline = "middle";
-  g.fillText(agent ? agent.emoji : "🍸", 64, 70);
+  g.fillText(agent ? monogram(agent.name) : "B", 64, 68);
   ring();
-  if (agent?.photo) {
+  // uploaded photo first, else the agent's generated portrait (not in the static demo, which has no server)
+  const isStatic = !!(window as unknown as { __GRADIENT_STATIC__?: boolean }).__GRADIENT_STATIC__;
+  const art = agent && !agent.photo && !isStatic ? avatarArt(agent) : null;
+  const src = agent?.photo ?? (art ? artUrl(art) : null);
+  if (src) {
     const img = new Image();
     img.onload = () => {
       g.save();
@@ -717,15 +724,18 @@ function headTexture(agent: Agent | null) {
       g.arc(64, 64, 60, 0, Math.PI * 2);
       g.clip();
       const s = Math.min(img.width, img.height);
-      g.drawImage(img, (img.width - s) / 2, (img.height - s) / 2, s, s, 4, 4, 120, 120);
+      g.drawImage(img, (img.width - s) / 2, (img.height - s) * 0.2, s, s, 4, 4, 120, 120);
       g.restore();
       ring();
       t.needsUpdate = true;
     };
-    img.src = agent.photo;
+    img.src = src;
   }
   return t;
 }
+
+const monogram = (name: string) =>
+  (name.replace(/[^A-Za-z0-9 ]/g, " ").trim().split(/\s+|(?=[A-Z][a-z])/).filter(Boolean).slice(0, 2).map((w) => w[0]).join("") || "?").toUpperCase();
 
 function neon(text: string, color: string, width: number, x: number, y: number, z: number, rotY = 0) {
   const [c, g] = canvas(1024, 256);
