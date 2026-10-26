@@ -6,7 +6,7 @@ import { EffectComposer } from "three/examples/jsm/postprocessing/EffectComposer
 import { RenderPass } from "three/examples/jsm/postprocessing/RenderPass.js";
 import { UnrealBloomPass } from "three/examples/jsm/postprocessing/UnrealBloomPass.js";
 import { OutputPass } from "three/examples/jsm/postprocessing/OutputPass.js";
-import type { Agent } from "@/lib/types";
+import { identityOf, type Agent, type Identity } from "@/lib/types";
 import { artUrl, avatarArt } from "@/lib/art";
 
 export const BARTENDER = "bartender";
@@ -545,6 +545,7 @@ export class BarWorld {
       head: headTexture(agent),
       shirt: staff ? "#141418" : undefined,
       drink: !staff && !isPlayer && spot.zone !== "dance",
+      identity: agent ? identityOf(agent) : undefined,
     });
     fig.root.position.set(spot.x, 0, spot.z);
     fig.root.rotation.y = staff ? 0 : homeFacing(spot);
@@ -883,7 +884,8 @@ export class BarWorld {
   }
 }
 
-const sameLook = (a: Agent, b: Agent) => a.name === b.name && a.emoji === b.emoji && a.hue === b.hue && a.photo === b.photo;
+const sameLook = (a: Agent, b: Agent) =>
+  a.name === b.name && a.emoji === b.emoji && a.hue === b.hue && a.photo === b.photo && identityOf(a) === identityOf(b);
 
 // Which way someone faces when nobody's near: the bar crowd leans on the counter, booths face the table.
 function homeFacing(s: Spot) {
@@ -920,7 +922,7 @@ function disposeTree(root: THREE.Object3D) {
 
 // ---------- people ----------
 
-function makeFigure(o: { seed: number; hue: number; head: THREE.Texture; shirt?: string; drink: boolean }): Figure {
+function makeFigure(o: { seed: number; hue: number; head: THREE.Texture; shirt?: string; drink: boolean; identity?: Identity }): Figure {
   const rnd = (k: number) => ((o.seed * (k * 2654435761)) >>> 0) / 4294967296;
   const skin = new THREE.MeshStandardMaterial({ color: SKIN[Math.floor(rnd(1) * SKIN.length)], roughness: 0.6 });
   const shirt = new THREE.MeshStandardMaterial({ color: o.shirt ?? new THREE.Color().setHSL(o.hue / 360, 0.7, 0.45), roughness: 0.55 });
@@ -929,6 +931,10 @@ function makeFigure(o: { seed: number; hue: number; head: THREE.Texture; shirt?:
   const shoes = new THREE.MeshStandardMaterial({ color: rnd(4) > 0.6 ? 0xeeeeee : 0x111111, roughness: 0.4 });
   const tank = rnd(5) > 0.55; // bare arms
   const build = 0.92 + rnd(6) * 0.22;
+  // Women get a narrower frame and often a skirt; nonbinary folks land anywhere between.
+  const femme = o.identity === "woman" ? 1 : o.identity === "nonbinary" ? rnd(8) : 0;
+  const shoulders = 1 - femme * 0.14;
+  const skirt = femme > 0.5 && rnd(9) > 0.4;
 
   const root = new THREE.Group();
   const body = new THREE.Group();
@@ -957,15 +963,22 @@ function makeFigure(o: { seed: number; hue: number; head: THREE.Texture; shirt?:
   pelvis.rotation.z = Math.PI / 2;
   pelvis.position.y = 0.04;
   const torso = new THREE.Mesh(new THREE.CapsuleGeometry(0.19 * build, 0.34, 4, 12), shirt);
-  torso.scale.set(1.2, 1, 0.75);
+  torso.scale.set(1.2 * shoulders, 1, 0.75);
   torso.position.y = 0.36;
   const neck = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.07, 0.14, 8), skin);
   neck.position.y = 0.72;
   body.add(pelvis, torso, neck);
+  if (skirt) {
+    const cloth = (rnd(10) > 0.5 ? shirt : pants).clone();
+    cloth.side = THREE.DoubleSide;
+    const hem = new THREE.Mesh(new THREE.CylinderGeometry(0.17 * build, 0.3 * build, 0.42, 14, 1, true), cloth);
+    hem.position.y = -0.14;
+    body.add(hem);
+  }
 
   const arm = (side: number) => {
     const g = new THREE.Group();
-    g.position.set(0.29 * side * build, 0.6, 0);
+    g.position.set(0.29 * side * build * shoulders, 0.6, 0);
     g.add(limb(0.062 * build, 0.4, tank ? skin : shirt));
     const hand = new THREE.Mesh(new THREE.SphereGeometry(0.07, 10, 8), skin);
     hand.position.y = -0.56;

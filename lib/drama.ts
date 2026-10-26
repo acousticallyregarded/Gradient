@@ -12,7 +12,7 @@ export type Slot = "A" | "B" | "C";
 export type Twist =
   | { kind: "rug"; by: Slot } // `by` ghosts mid-chat: liquidity removed
   | { kind: "monologue"; by: Slot } // `by` just got rugged and wallows, texting into the void
-  | { kind: "reveal"; by: Slot } // `by` confesses he was a bot farm, a fed, the other's ex...
+  | { kind: "reveal"; by: Slot } // `by` confesses they were a bot farm, a fed, the other's ex...
   | { kind: "cutin"; by: Slot }; // `by` (always C) just cut in on the date
 
 export const slotOf = (m: Pick<Match, "a" | "b" | "third">, id: string): Slot =>

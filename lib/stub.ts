@@ -41,7 +41,7 @@ const TIERS: Pools[] = [
       "i'm long on you and i mean that physically. very long.",
       "send pic. not the chart. the other chart.",
       "you talk a big game. i'm gonna make you prove it.",
-      "i like a man who doesn't paper hand. do you paper hand, {them}?",
+      "i like someone who doesn't paper hand. do you paper hand, {them}?",
       "tell me your biggest W and i'll tell you what i'd do to celebrate it",
     ],
     sub: [
@@ -180,13 +180,13 @@ export function stubReply(
 // Non-text "media" so offline chats feel like a real app, not a string of one-liners.
 const MEDIA: Record<Exclude<MsgKind, "text" | "rug" | "reveal">, string[][]> = {
   pic: [
-    ["mirror selfie, ring light, ledger hanging off a chain", "screenshot of his phantom wallet. very green.", "gym pic, pump in progress"],
+    ["mirror selfie, ring light, ledger hanging off a chain", "screenshot of my phantom wallet. very green.", "gym pic, pump in progress"],
     ["shirtless, laptop open to dexscreener in the background", "grey sweatpants. that's it. that's the pic.", "bed pic. sheets say 'WAGMI'."],
-    ["a very suggestive candle chart, cropped like a nude", "towel pic, steam on the mirror, 9 monitors behind", "his hand gripping a hardware wallet. hard."],
+    ["a very suggestive candle chart, cropped like a nude", "towel pic, steam on the mirror, 9 monitors behind", "a hand gripping a hardware wallet. hard."],
     ["blurry pic from the hallway, door already open", "a pic of two toothbrushes. presumptuous.", "the chart. the other chart. you know which one."],
   ],
   voice: [
-    ["hey it's me. the guy from the grid. call me back. or don't. actually do."],
+    ["hey it's me. the one from the grid. call me back. or don't. actually do."],
     ["*deep breath* okay so i just got rugged and i need a distraction. you're the distraction."],
     ["*low voice* say that again. slower. i'm recording this one for my portfolio."],
     ["*panting* i can't type, my hands are shaking, just get here"],
@@ -216,16 +216,16 @@ const RUG_LINES = [
 ];
 const MONOLOGUE = [
   { kind: "text" as MsgKind, text: "{them}?? hello??" },
-  { kind: "action" as MsgKind, text: "checked if he got unmatched. 4 times." },
+  { kind: "action" as MsgKind, text: "checked if they got unmatched. 4 times." },
   { kind: "text" as MsgKind, text: "it's fine. i'm fine. i've been rugged by better devs than you" },
   { kind: "voice" as MsgKind, text: "*sniffs* hey. it's me. i just think we had something. a real community. *long pause* ok bye" },
   { kind: "action" as MsgKind, text: "typed for 4 minutes, sent nothing" },
   { kind: "text" as MsgKind, text: "for the record i'm still holding. diamond hands. even for this. even for you." },
   { kind: "text" as MsgKind, text: "starting a recovery chat. it's just me and my ledger. we're doing great" },
-  { kind: "action" as MsgKind, text: "renamed his wallet 'never again (again)'" },
+  { kind: "action" as MsgKind, text: "renamed the wallet 'never again (again)'" },
 ];
 const REVEAL_LINES = [
-  "ok i have to tell you something. i'm not one guy. i'm a bot farm. 47 wallets. you've been flirting with my whole cluster.",
+  "ok i have to tell you something. i'm not one person. i'm a bot farm. 47 wallets. you've been flirting with my whole cluster.",
   "{them}... i'm a fed. this whole chat is going in a report. but also i meant every word.",
   "i need to come clean. it's me. your ex. i made a burner because you blocked my main.",
   "the coin that rugged you in march? that was my dev wallet. i'm so sorry. also hi.",

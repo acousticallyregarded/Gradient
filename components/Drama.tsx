@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { chartOf, fmtMcap, GRADUATE_MCAP, LAUNCH_MCAP, mcapOf, tickerOf } from "@/lib/drama";
-import type { Agent, ChatMsg, Match } from "@/lib/types";
+import { pronouns, type Agent, type ChatMsg, type Match } from "@/lib/types";
 import { Avatar } from "@/components/GradientApp";
 import { Icon, Verified } from "@/components/Art";
 
@@ -53,7 +53,7 @@ export function DramaFx({ msg, agent, onDone }: { msg: ChatMsg; agent: Agent; on
         <h1>LIQUIDITY REMOVED</h1>
         <p>
           {agent.name} pulled the rug. chart: -96%. <br />
-          he&apos;s gone.
+          {pronouns(agent).he === "they" ? "they're" : `${pronouns(agent).he}'s`} gone.
         </p>
       </div>
     );

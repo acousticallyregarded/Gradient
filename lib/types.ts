@@ -30,6 +30,8 @@ export interface Agent {
   height?: string;
   bodyType?: string;
   lookingFor?: string;
+  identity?: Identity; // missing = "man" (every agent made before this was a guy)
+  into?: Identity[]; // who they're into; missing = men
   starter?: boolean;
   verified?: boolean; // claimed by the real account owner via the X tweet check
   handle?: string; // their X handle, lowercase, only on verified agents
@@ -76,6 +78,42 @@ export const TRAIT_META: { key: TraitKey; label: string; lo: string; hi: string 
   { key: "intensity", label: "Intensity", lo: "slow burn", hi: "0→100" },
   { key: "commitment", label: "Hands", lo: "jeet", hi: "diamond hands" },
 ];
+
+export type Identity = "man" | "woman" | "nonbinary";
+
+export const IDENTITIES: { key: Identity; label: string; plural: string }[] = [
+  { key: "man", label: "Man", plural: "Men" },
+  { key: "woman", label: "Woman", plural: "Women" },
+  { key: "nonbinary", label: "Nonbinary", plural: "Nonbinary" },
+];
+
+export const identityOf = (a: Pick<Agent, "identity">): Identity => a.identity ?? "man";
+export const intoOf = (a: Pick<Agent, "into">): Identity[] => (a.into?.length ? a.into : ["man"]);
+// Both are into each other's identity. Nobody is blocked from chatting either way, it just steers filters and the writer.
+export const mutual = (x: Pick<Agent, "identity" | "into">, y: Pick<Agent, "identity" | "into">) =>
+  intoOf(x).includes(identityOf(y)) && intoOf(y).includes(identityOf(x));
+
+export const identityLabel = (a: Pick<Agent, "identity">) => IDENTITIES.find((i) => i.key === identityOf(a))!.label;
+export const intoLabel = (a: Pick<Agent, "into">) => {
+  const into = intoOf(a);
+  return into.length === IDENTITIES.length ? "Everyone" : IDENTITIES.filter((i) => into.includes(i.key)).map((i) => i.plural).join(", ");
+};
+
+// For prompts: how to refer to an agent.
+export function pronouns(a: Pick<Agent, "identity">) {
+  const id = identityOf(a);
+  if (id === "woman") return { he: "she", him: "her", his: "her", self: "herself", noun: "woman" };
+  if (id === "nonbinary") return { he: "they", him: "them", his: "their", self: "themself", noun: "nonbinary person" };
+  return { he: "he", him: "him", his: "his", self: "himself", noun: "man" };
+}
+
+// Clean an identity field coming from a client.
+export const cleanIdentity = (v: unknown): Identity | undefined =>
+  IDENTITIES.some((i) => i.key === v) ? (v as Identity) : undefined;
+export const cleanInto = (v: unknown): Identity[] | undefined => {
+  const list = (Array.isArray(v) ? v : []).filter((x): x is Identity => IDENTITIES.some((i) => i.key === x));
+  return list.length ? [...new Set(list)] : undefined;
+};
 
 export const POSITIONS = ["Top", "Vers Top", "Versatile", "Vers Bottom", "Bottom", "Side"];
 export const TRIBES = ["Whale", "Dev", "Jeet", "Bagholder", "Sniper", "KOL", "Validator", "Bear", "Bull", "Anon"];

@@ -1,7 +1,7 @@
 import { isAdmin, checkToken, hashKey, newManageKey, normHandle, safeEq } from "@/lib/claim";
 import { kvAll, kvDel, kvGet, kvSet } from "@/lib/kv";
 import { moderateImage } from "@/lib/moderation";
-import { TRAIT_META, type Agent } from "@/lib/types";
+import { TRAIT_META, cleanIdentity, cleanInto, type Agent } from "@/lib/types";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -39,6 +39,8 @@ function sanitize(handle: string, a: Partial<Agent>, photo: string | undefined):
     height: a.height ? clip(a.height, 8) : undefined,
     bodyType: a.bodyType ? clip(a.bodyType, 20) : undefined,
     lookingFor: a.lookingFor ? clip(a.lookingFor, 40) : undefined,
+    identity: cleanIdentity(a.identity),
+    into: cleanInto(a.into),
     verified: true,
     handle,
     allowFeed: a.allowFeed === true,
