@@ -1,7 +1,7 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { kvAll } from "./kv";
 import { mcapOf } from "./drama";
-import { TRAIT_META, type Agent, type ChatMsg, type MsgKind } from "./types";
+import { TRAIT_META, cleanIdentity, cleanInto, type Agent, type ChatMsg, type MsgKind } from "./types";
 
 // Public feed: chats a viewer chose to post. Everything here is rebuilt server-side from the
 // client's copy, because that copy (names, text, pics) could have been edited by hand.
@@ -82,6 +82,8 @@ function cleanAgent(a: Partial<Agent>): Agent {
     height: a.height ? clip(a.height, 8) : undefined,
     bodyType: a.bodyType ? clip(a.bodyType, 20) : undefined,
     lookingFor: a.lookingFor ? clip(a.lookingFor, 40) : undefined,
+    identity: cleanIdentity(a.identity),
+    into: cleanInto(a.into),
     createdAt: num(a.createdAt, 0, Date.now(), Date.now()),
   };
 }

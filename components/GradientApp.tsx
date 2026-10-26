@@ -23,7 +23,25 @@ import {
   setAgeOk,
   uid,
 } from "@/lib/storage";
-import { BODY_TYPES, LOOKING_FOR, POSITIONS, TRAIT_META, TRIBES, trait, type Agent, type ChatMsg, type Match, type Traits } from "@/lib/types";
+import {
+  BODY_TYPES,
+  IDENTITIES,
+  LOOKING_FOR,
+  POSITIONS,
+  TRAIT_META,
+  TRIBES,
+  identityLabel,
+  identityOf,
+  intoLabel,
+  intoOf,
+  mutual,
+  trait,
+  type Agent,
+  type ChatMsg,
+  type Identity,
+  type Match,
+  type Traits,
+} from "@/lib/types";
 import { agentOf, applyMsg, fmtMcap, planTwist, relaunch, toChatMsgs, type Twist } from "@/lib/drama";
 import { Chart, DramaFx, Gossip, RevealMsg, RugMsg, ThirdPicker, TrendingBoard } from "@/components/Drama";
 import { AgentGallery, AgentPhoto, Glyph, Icon, Scene, Verified, galleryLength } from "@/components/Art";
@@ -32,8 +50,8 @@ import { AVATARS, type IconName } from "@/lib/art";
 type View = "grid" | "bar" | "create" | "mine" | "chats" | "chat" | "claim" | "admin" | "feed" | "post";
 
 // avatar keys: the old emoji ids, each now mapped to a generated portrait (lib/art.ts)
-const EMOJIS = AVATARS.map((a) => a.key);
-const QUICK_TAGS = ["top", "bottom", "vers", "dom", "sub", "brat", "daddy", "twink", "bear", "jock", "whale", "jeet"];
+const avatarsFor = (id: Identity) => AVATARS.filter((a) => (a.identity ?? "man") === id);
+const QUICK_TAGS = ["top", "bottom", "vers", "dom", "sub", "brat", "daddy", "twink", "bear", "jock", "whale", "jeet", "femme", "butch", "mommy", "bi", "lesbian", "enby"];
 // Set by the demo build when it runs inside a sandboxed embed where share links can't round-trip.
 const isStatic = typeof window !== "undefined" && !!(window as unknown as { __GRADIENT_STATIC__?: boolean }).__GRADIENT_STATIC__;
 const embedded = typeof window !== "undefined" && !!(window as unknown as { __GRADIENT_EMBED__?: boolean }).__GRADIENT_EMBED__;
@@ -71,18 +89,28 @@ const RAND_BIOS = [
   "Fully diluted, fully committed.",
   "Bought at ATH, looking for someone to average down with.",
 ];
-const RAND_LOOKS = ["otter, harness, airpods in", "bear in a hoodie that says WAGMI", "twunk with a fresh fade", "lean swimmer build, laptop never closed", "hairy chest, gold grillz, Solana socks"];
+const RAND_LOOKS: Record<Identity, string[]> = {
+  man: ["otter, harness, airpods in", "bear in a hoodie that says WAGMI", "twunk with a fresh fade", "lean swimmer build, laptop never closed", "hairy chest, gold grillz, Solana socks"],
+  woman: ["claw clip, oversized hoodie that says WAGMI", "acrylics tapping a ledger", "tattooed arms, septum ring, gym shorts", "silk scarf, big sunglasses, laptop never closed", "messy bun, glasses, three monitors"],
+  nonbinary: ["buzzcut, glitter, mesh top", "curly mullet, rings on every finger", "split-dye hair, baggy cargos, Solana socks", "eyeliner, leather jacket, airpods in"],
+};
+const RAND_INTO: Identity[][] = [["man"], ["woman"], ["man", "woman"], ["man", "woman", "nonbinary"], ["woman", "nonbinary"]];
 
 function randomAgent(): Agent {
   const tr = blankTraits();
   for (const k of Object.keys(tr) as (keyof Traits)[]) tr[k] = r(101);
+  const identity = IDENTITIES[r(IDENTITIES.length)].key;
+  const looks = RAND_LOOKS[identity];
+  const avatars = avatarsFor(identity);
   return {
     ...blankAgent(),
+    identity,
+    into: identity === "man" ? [["man"], ["man", "woman"]][r(2)] as Identity[] : RAND_INTO[r(RAND_INTO.length)],
     name: RAND_NAMES[r(RAND_NAMES.length)],
     age: 21 + r(25),
     bio: RAND_BIOS[r(RAND_BIOS.length)],
-    look: RAND_LOOKS[r(RAND_LOOKS.length)],
-    emoji: EMOJIS[r(EMOJIS.length)],
+    look: looks[r(looks.length)],
+    emoji: avatars[r(avatars.length)].key,
     hue: r(360),
     traits: tr,
     tags: [QUICK_TAGS[3 + r(9)]],
@@ -105,6 +133,8 @@ const online = (a: Agent) => !a.starter || a.id.length % 3 !== 0;
 
 function Stats({ agent }: { agent: Agent }) {
   const rows: [string, string | undefined][] = [
+    ["Identity", identityLabel(agent)],
+    ["Into", intoLabel(agent)],
     ["Position", agent.position],
     ["Tribe", agent.tribe],
     ["Height", agent.height],
@@ -189,10 +219,14 @@ export default function GradientApp({ initialView = "grid", postId: initialPost 
   const me = all.find((a) => a.id === asId) ?? STARTERS[0];
   const [onlineOnly, setOnlineOnly] = useState(false);
   const [tribe, setTribe] = useState<string | null>(null);
+  const [showing, setShowing] = useState<Identity | null>(null);
+  const [intoMe, setIntoMe] = useState(false);
   const others = all
     .filter((a) => a.id !== me.id)
     .filter((a) => !onlineOnly || online(a))
     .filter((a) => !tribe || a.tribe === tribe)
+    .filter((a) => !showing || identityOf(a) === showing)
+    .filter((a) => !intoMe || mutual(me, a))
     .sort((x, y) => distNum(x) - distNum(y));
   const fresh = mine.filter((a) => a.id !== me.id).slice(0, 8);
   const match = matches.find((m) => m.id === matchId) ?? null;
@@ -474,6 +508,18 @@ export default function GradientApp({ initialView = "grid", postId: initialPost 
               <button className={`chip ${onlineOnly ? "on" : ""}`} onClick={() => setOnlineOnly((v) => !v)}>
                 <i className="dot" /> online
               </button>
+              <button
+                className={`chip ${intoMe ? "on" : ""}`}
+                onClick={() => setIntoMe((v) => !v)}
+                title={`only agents ${me.name} is into, who are into ${me.name} back`}
+              >
+                into each other
+              </button>
+              {IDENTITIES.map((i) => (
+                <button key={i.key} className={`chip ${showing === i.key ? "on" : ""}`} onClick={() => setShowing(showing === i.key ? null : i.key)}>
+                  {i.plural}
+                </button>
+              ))}
               {TRIBES.map((t) => (
                 <button key={t} className={`chip ${tribe === t ? "on" : ""}`} onClick={() => setTribe(tribe === t ? null : t)}>
                   {t}
@@ -1155,6 +1201,19 @@ export function Creator({
   const set = <K extends keyof Agent>(k: K, v: Agent[K]) => setDraft({ ...draft, [k]: v });
   const toggleTag = (t: string) =>
     set("tags", draft.tags.includes(t) ? draft.tags.filter((x) => x !== t) : [...draft.tags, t].slice(0, 5));
+  // Switching identity swaps a stock avatar for one of the new set, unless they already picked one from it.
+  const setIdentity = (identity: Identity) => {
+    const fits = avatarsFor(identity).some((p) => p.key === draft.emoji);
+    setDraft({ ...draft, identity, emoji: fits ? draft.emoji : avatarsFor(identity)[0].key });
+  };
+  // Always into somebody: un-ticking the last one is ignored.
+  const toggleInto = (id: Identity) => {
+    const into = intoOf(draft);
+    const next = into.includes(id) ? into.filter((x) => x !== id) : [...into, id];
+    if (next.length) set("into", IDENTITIES.map((i) => i.key).filter((k) => next.includes(k)));
+  };
+  // The chosen identity's avatars first, everyone else's after.
+  const avatars = [...avatarsFor(identityOf(draft)), ...AVATARS.filter((a) => (a.identity ?? "man") !== identityOf(draft))];
   return (
     <section className="creator">
       <div className="creator-head">
@@ -1168,7 +1227,7 @@ export function Creator({
         <Avatar agent={draft} size={72} />
         <div>
           <b>{draft.name || "unnamed ticker"}</b>
-          <small className="muted">{[draft.age, draft.position, draft.tribe].filter(Boolean).join(" · ")}</small>
+          <small className="muted">{[draft.age, identityLabel(draft).toLowerCase(), draft.position, draft.tribe].filter(Boolean).join(" · ")}</small>
         </div>
       </div>
 
@@ -1188,6 +1247,27 @@ export function Creator({
         look
         <input value={draft.look} maxLength={100} placeholder="body type, outfit, vibe" onChange={(e) => set("look", e.target.value)} />
       </label>
+
+      <label>
+          i am a
+          <select value={identityOf(draft)} onChange={(e) => setIdentity(e.target.value as Identity)}>
+            {IDENTITIES.map((i) => (
+              <option key={i.key} value={i.key}>
+                {i.label.toLowerCase()}
+              </option>
+            ))}
+          </select>
+        </label>
+        <div className="field">
+          into
+          <div className="chips">
+            {IDENTITIES.map((i) => (
+              <button key={i.key} className={`chip ${intoOf(draft).includes(i.key) ? "on" : ""}`} onClick={() => toggleInto(i.key)}>
+                {i.plural.toLowerCase()}
+              </button>
+            ))}
+          </div>
+        </div>
 
       <div className="two">
         <label>
@@ -1229,7 +1309,7 @@ export function Creator({
       <div className="field">
         {draft.photo ? "fallback avatar (shown in share links)" : "avatar"}
         <div className="avatar-picker">
-          {AVATARS.map((p) => (
+          {avatars.map((p) => (
             <button key={p.key} className={draft.emoji === p.key ? "on" : ""} onClick={() => set("emoji", p.key)}>
               <AgentPhoto agent={{ id: "", name: p.label, emoji: p.key, hue: draft.hue }} />
               <span>{p.label}</span>
@@ -1280,7 +1360,7 @@ export function Creator({
           rows={3}
           maxLength={300}
           value={draft.notes}
-          placeholder="quirks, catchphrases, kinks, how he talks. this goes straight into his brain."
+          placeholder="quirks, catchphrases, kinks, how they talk. this goes straight into their brain."
           onChange={(e) => set("notes", e.target.value)}
         />
       </label>
@@ -1332,7 +1412,7 @@ function VoiceNote({ m, agent }: { m: ChatMsg; agent: Agent }) {
         const res = await fetch("/api/voice", {
           method: "POST",
           headers: { "content-type": "application/json" },
-          body: JSON.stringify({ text: m.text, agent: { id: agent.id, name: agent.name, traits: agent.traits, notes: agent.notes } }),
+          body: JSON.stringify({ text: m.text, agent: { id: agent.id, name: agent.name, traits: agent.traits, notes: agent.notes, identity: agent.identity } }),
         });
         if (res.ok && res.headers.get("content-type")?.startsWith("audio")) {
           url = URL.createObjectURL(await res.blob());
@@ -1429,7 +1509,7 @@ function PicMsg({ m, agent, onImage }: { m: ChatMsg; agent: Agent; onImage?: (id
         body: JSON.stringify({
           text: m.text,
           scene: m.scene,
-          agent: { id: agent.id, age: agent.age, look: agent.look, bodyType: agent.bodyType, height: agent.height, verified: agent.verified, hasPhoto: !!agent.photo },
+          agent: { id: agent.id, age: agent.age, look: agent.look, bodyType: agent.bodyType, height: agent.height, identity: agent.identity, verified: agent.verified, hasPhoto: !!agent.photo },
         }),
       });
       if (res.ok && res.headers.get("content-type")?.startsWith("image")) {

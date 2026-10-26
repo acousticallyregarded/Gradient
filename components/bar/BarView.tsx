@@ -97,7 +97,7 @@ export default function BarView({
   }, []);
 
   const crowdKey = useMemo(
-    () => [me, ...agents].map((a) => `${a.id}:${a.name}:${a.emoji}:${a.hue}:${a.photo?.length ?? 0}`).join("|"),
+    () => [me, ...agents].map((a) => `${a.id}:${a.name}:${a.emoji}:${a.hue}:${a.identity ?? ""}:${a.photo?.length ?? 0}`).join("|"),
     [me, agents],
   );
   useEffect(() => {

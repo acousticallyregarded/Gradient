@@ -15,7 +15,7 @@ const EL_VOICES = (process.env.ELEVENLABS_VOICES || "").split("|").map((s) => s.
 
 const cache = new Map<string, ArrayBuffer>();
 
-type Speaker = Pick<Agent, "id" | "name" | "traits" | "notes">;
+type Speaker = Pick<Agent, "id" | "name" | "traits" | "notes" | "identity">;
 
 async function openai(text: string, a: Speaker): Promise<Response> {
   return fetch("https://api.openai.com/v1/audio/speech", {

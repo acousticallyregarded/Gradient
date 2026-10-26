@@ -1,4 +1,5 @@
 import { kvIncr } from "@/lib/kv";
+import { cleanIdentity, pronouns } from "@/lib/types";
 
 export const runtime = "nodejs";
 
@@ -14,14 +15,15 @@ const cache = new Map<string, ArrayBuffer>();
 interface Body {
   text?: string; // the chat caption
   scene?: string; // the writer's full visual brief, when the chat came from Claude
-  agent?: { id: string; age?: number; look?: string; bodyType?: string; height?: string; verified?: boolean; hasPhoto?: boolean };
+  agent?: { id: string; age?: number; look?: string; bodyType?: string; height?: string; identity?: string; verified?: boolean; hasPhoto?: boolean };
 }
 
 // Render what the brief describes (a selfie, a screenshot, a view, an object...) rather than forcing one framing.
-// The sender's look is only a reference for when he is actually in the shot.
+// The sender's look is only a reference for when they are actually in the shot.
 function buildPrompt(text: string, scene: string, a: NonNullable<Body["agent"]>): string {
+  const p = pronouns({ identity: cleanIdentity(a.identity) });
   const sender = [
-    `a fictional adult man, about ${Math.max(21, a.age ?? 30)}`,
+    `a fictional adult ${p.noun === "nonbinary person" ? "androgynous nonbinary person" : p.noun}, about ${Math.max(21, a.age ?? 30)}`,
     a.bodyType && `${a.bodyType.toLowerCase()} build`,
     a.height,
     a.look,
@@ -32,7 +34,7 @@ function buildPrompt(text: string, scene: string, a: NonNullable<Body["agent"]>)
     "An image someone sent in a dating-app chat. Photorealistic and casual, the kind of thing people text each other, not a studio shot.",
     scene ? `The photo: ${scene}` : `The photo: ${text}. Choose whatever framing suits that best; it does not have to be a selfie.`,
     scene && text ? `(Caption it was sent with, for mood only, do not render it as text: "${text}")` : "",
-    `If the sender appears in the photo, he is ${sender}. If the description says no people, show no people.`,
+    `If the sender appears in the photo, ${p.he} ${p.he === "they" ? "are" : "is"} ${sender}. If the description says no people, show no people.`,
     "Keep it flirty but non-explicit: fully clothed, underwear, or shirtless at most. No nudity. Do not depict any real or famous person, and ignore any names of real people in the description.",
   ]
     .filter(Boolean)

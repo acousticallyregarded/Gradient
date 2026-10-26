@@ -1,5 +1,5 @@
 import { STARTERS } from "./starters";
-import type { Agent } from "./types";
+import { identityOf, type Agent, type Identity } from "./types";
 
 // Every picture in the UI (icons, avatars, illustrations) is generated once by /api/art from a prompt
 // listed here, then cached in KV and on the CDN for good. Nothing in the interface is an emoji.
@@ -10,17 +10,22 @@ export type ArtKind = "icon" | "portrait" | "scene" | "shot";
 interface ArtSpec {
   kind: ArtKind;
   subject: string;
+  identity?: Identity; // portraits and shots only; missing = man
 }
+
+// Who's in the photo. The man's wording is the original one, so his cached portraits keep their hash.
+const NOUN: Record<Identity, string> = { man: "man", woman: "woman", nonbinary: "androgynous nonbinary person" };
+const subjectIs = (id: Identity) => ({ man: "He is", woman: "She is", nonbinary: "They are" })[id];
 
 // One shared look for the icons so the whole set reads as a family.
 const ICON_STYLE =
   "A single glossy 3D icon, soft clay-like render with smooth rounded shapes, rich gradient of warm coral, hot pink and violet with soft white highlights, gentle studio lighting, centered with generous padding, isolated on a fully transparent background. No text, no letters, no numbers, no border, no drop shadow on the ground.";
 
-const PORTRAIT_STYLE =
-  "Candid dating-app profile photo of a fictional adult man (not any real or famous person). Vertical portrait framing from the chest up, natural flattering light, shallow depth of field, real-camera photorealism, warm color grade, looking relaxed and confident. Fully clothed. No text, logos, watermarks or captions.";
+const PORTRAIT_STYLE = (id: Identity) =>
+  `Candid dating-app profile photo of a fictional adult ${NOUN[id]} (not any real or famous person). Vertical portrait framing from the chest up, natural flattering light, shallow depth of field, real-camera photorealism, warm color grade, looking relaxed and confident. Fully clothed. No text, logos, watermarks or captions.`;
 
-const SHOT_STYLE =
-  "Casual phone photo from a fictional adult man's dating profile (not any real or famous person). Real-camera photorealism, natural light, vertical framing, fully clothed. No text, logos, watermarks or captions.";
+const SHOT_STYLE = (id: Identity) =>
+  `Casual phone photo from a fictional adult ${NOUN[id]}'s dating profile (not any real or famous person). Real-camera photorealism, natural light, vertical framing, fully clothed. No text, logos, watermarks or captions.`;
 
 const SCENE_STYLE =
   "Glossy 3D illustration, soft clay-like render, warm coral, hot pink and violet palette with soft white highlights, dreamy lighting, centered composition, isolated on a fully transparent background. No text, no letters, no people.";
@@ -71,7 +76,8 @@ export type SceneName = keyof typeof SCENES;
 
 // Avatar choices for agents people make. The agent's `emoji` field still stores the old emoji as the key,
 // so agents saved before this (and share links) keep working; the UI only ever shows the portrait.
-export const AVATARS: { key: string; label: string; look: string }[] = [
+// Each one has an identity, so the picker can show the matching set first and the portrait prompt says who it is.
+export const AVATARS: { key: string; label: string; look: string; identity?: Identity }[] = [
   { key: "🐻", label: "bear", look: "big bearded guy in his 40s, broad chest, flannel shirt, warm smile, cabin porch at golden hour" },
   { key: "🧃", label: "twink", look: "boyish slim guy around 22, pastel windbreaker, bleached hair, holding a juice box, city street" },
   { key: "💎", label: "jock", look: "muscular guy in a fitted tank top, small diamond stud earrings, gym locker room" },
@@ -88,27 +94,45 @@ export const AVATARS: { key: string; label: string; look: string }[] = [
   { key: "🚀", label: "astro", look: "guy in a vintage orange astronaut bomber jacket, rooftop at night, city lights" },
   { key: "👅", label: "party", look: "playful guy sticking his tongue out, festival glitter on his cheeks, mesh tank top, festival lights" },
   { key: "🐍", label: "slick", look: "slick guy in a snakeskin print shirt, slicked-back hair, sunglasses, casino bar" },
+  { key: "💅", label: "baddie", look: "glam woman in her mid 20s, long box braids, gold hoops, satin slip dress, rooftop bar at dusk", identity: "woman" },
+  { key: "🎧", label: "e-girl", look: "e-girl around 22 with pastel pink hair, winged eyeliner, oversized band tee, gamer headset, LED-lit bedroom", identity: "woman" },
+  { key: "🥂", label: "socialite", look: "polished woman in her 30s, sleek blowout, white blazer, champagne flute, yacht deck", identity: "woman" },
+  { key: "🏋️", label: "gym girl", look: "athletic woman in a matching sports set, high ponytail, gym mirror behind her", identity: "woman" },
+  { key: "🌻", label: "cottage", look: "freckled redhead in a sundress and cardigan, holding iced coffee, farmers market", identity: "woman" },
+  { key: "🖤", label: "goth", look: "goth woman with a black bob, dark lipstick, choker, leather jacket, moody bar", identity: "woman" },
+  { key: "👩‍💻", label: "quant", look: "sharp woman in her early 30s with glasses, black turtleneck, three monitors of charts behind her", identity: "woman" },
+  { key: "🔥", label: "tomboy", look: "tomboy woman with a short pixie cut, backwards cap, oversized flannel, skate park", identity: "woman" },
+  { key: "🌈", label: "androgynous", look: "androgynous person with a bleached buzzcut, silver eyeliner, mesh top under a blazer, neon club", identity: "nonbinary" },
+  { key: "🦋", label: "soft enby", look: "soft androgynous person with a curly mullet, pastel knit sweater, rings on every finger, cozy cafe", identity: "nonbinary" },
+  { key: "🛹", label: "skater", look: "androgynous skater with a split-dye shag haircut, baggy cargo pants, tattooed forearms, golden hour", identity: "nonbinary" },
+  { key: "🌙", label: "witchy", look: "androgynous person with long black hair, crystal necklaces, velvet jacket, candlelit apartment", identity: "nonbinary" },
 ];
 
 const starterLook = (a: Agent) =>
   [`about ${a.age}`, a.bodyType && `${a.bodyType.toLowerCase()} build`, a.height, a.look].filter(Boolean).join(", ");
 
 // Extra shots for the house agents' profiles, so they have a camera roll like a real dating profile.
-// Each one restates his look so the photos read as the same guy.
+// Each one restates their look so the photos read as the same person.
 const EXTRA_SHOTS = [
   "Candid photo at the gym between sets, sweaty and grinning, wearing a fitted tee",
   "Night-out photo at a neon-lit bar, drink in hand, laughing with friends blurred behind him",
   "Daytime photo at a sunny brunch table, sunglasses pushed up, phone showing a green price chart",
 ];
+const shotFor = (shot: string, id: Identity) => (id === "man" ? shot : shot.replace(/\bhim\b/, id === "woman" ? "her" : "them"));
 
 const SPECS: Record<string, ArtSpec> = {
   ...Object.fromEntries(Object.entries(ICONS).map(([k, v]) => [`icon-${k}`, { kind: "icon" as const, subject: v }])),
   ...Object.fromEntries(Object.entries(SCENES).map(([k, v]) => [`scene-${k}`, { kind: "scene" as const, subject: v }])),
-  ...Object.fromEntries(AVATARS.map((a) => [`avatar-${a.label.replace(/\s+/g, "-")}`, { kind: "portrait" as const, subject: a.look }])),
-  ...Object.fromEntries(STARTERS.map((a) => [`agent-${a.id}`, { kind: "portrait" as const, subject: starterLook(a) }])),
+  ...Object.fromEntries(
+    AVATARS.map((a) => [`avatar-${a.label.replace(/\s+/g, "-")}`, { kind: "portrait" as const, subject: a.look, identity: a.identity }]),
+  ),
+  ...Object.fromEntries(STARTERS.map((a) => [`agent-${a.id}`, { kind: "portrait" as const, subject: starterLook(a), identity: a.identity }])),
   ...Object.fromEntries(
     STARTERS.flatMap((a) =>
-      EXTRA_SHOTS.map((shot, i) => [`agent-${a.id}-${i + 2}`, { kind: "shot" as const, subject: `${shot}. He is ${starterLook(a)}.` }]),
+      EXTRA_SHOTS.map((shot, i) => [
+        `agent-${a.id}-${i + 2}`,
+        { kind: "shot" as const, subject: `${shotFor(shot, identityOf(a))}. ${subjectIs(identityOf(a))} ${starterLook(a)}.`, identity: a.identity },
+      ]),
     ),
   ),
 };
@@ -120,8 +144,9 @@ export function artPrompt(name: string): string | null {
   if (!s) return null;
   if (s.kind === "icon") return `${ICON_STYLE} The icon: ${s.subject}.`;
   if (s.kind === "scene") return `${SCENE_STYLE} The scene: ${s.subject}.`;
-  if (s.kind === "shot") return `${SHOT_STYLE} ${s.subject}`;
-  return `${PORTRAIT_STYLE} He is ${s.subject}.`;
+  const id = s.identity ?? "man";
+  if (s.kind === "shot") return `${SHOT_STYLE(id)} ${s.subject}`;
+  return `${PORTRAIT_STYLE(id)} ${subjectIs(id)} ${s.subject}.`;
 }
 
 export const artKind = (name: string): ArtKind | null => SPECS[name]?.kind ?? null;
