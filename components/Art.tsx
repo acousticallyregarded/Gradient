@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { artUrl, avatarArt, type IconName, type SceneName } from "@/lib/art";
+import { agentGallery, artUrl, avatarArt, type IconName, type SceneName } from "@/lib/art";
 import type { Agent } from "@/lib/types";
 
 // The static demo build has no server, so it never asks for generated art and shows the fallbacks.
@@ -16,12 +16,14 @@ export function Art({
   alt = "",
   fallback = null,
   onReady,
+  onFail,
 }: {
   name: string;
   className?: string;
   alt?: string;
   fallback?: React.ReactNode;
   onReady?: (ok: boolean) => void;
+  onFail?: () => void;
 }) {
   const [tries, setTries] = useState(0);
   const [state, setState] = useState<"loading" | "ok" | "fail">(isStatic ? "fail" : "loading");
@@ -42,7 +44,10 @@ export function Art({
     return () => clearTimeout(t);
   }, [wait, tries]);
 
-  useEffect(() => onReady?.(state === "ok"), [state]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    onReady?.(state === "ok");
+    if (state === "fail") onFail?.();
+  }, [state]); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (state === "fail") return <>{fallback}</>;
   return (
@@ -102,6 +107,63 @@ export function AgentPhoto({ agent, className = "" }: { agent: Pick<Agent, "id" 
   );
 }
 
+// A profile's camera roll: every photo stacked (so they're all loaded), the current one shown, with
+// story-style bars on top. Taps are handled by the parent (the swipe card needs to tell taps from drags),
+// or by the left/right tap zones when `tappable`.
+export function AgentGallery({
+  agent,
+  className = "",
+  index,
+  onIndex,
+  tappable,
+}: {
+  agent: Pick<Agent, "id" | "name" | "emoji" | "hue" | "photo">;
+  className?: string;
+  index?: number;
+  onIndex?: (i: number) => void;
+  tappable?: boolean;
+}) {
+  const [own, setOwn] = useState(0);
+  const [dead, setDead] = useState<string[]>([]);
+  const all = agent.photo ? [] : agentGallery(agent);
+  const shots = all.filter((n, i) => i === 0 || !dead.includes(n));
+  if (shots.length <= 1) return <AgentPhoto agent={agent} className={className} />;
+  const cur = Math.min(index ?? own, shots.length - 1);
+  const go = (i: number) => {
+    const next = (i + shots.length) % shots.length;
+    setOwn(next);
+    onIndex?.(next);
+  };
+  return (
+    <span className={`agent-photo gallery ${className}`}>
+      {shots.map((n, i) =>
+        i === 0 ? (
+          <span key={n} className={`slide ${i === cur ? "on" : ""}`}>
+            <AgentPhoto agent={agent} />
+          </span>
+        ) : (
+          <span key={n} className={`slide ${i === cur ? "on" : ""}`}>
+            <Art name={n} onFail={() => setDead((d) => [...d, n])} />
+          </span>
+        ),
+      )}
+      <span className="gallery-bars">
+        {shots.map((n, i) => (
+          <i key={n} className={i === cur ? "on" : ""} />
+        ))}
+      </span>
+      {tappable && (
+        <>
+          <button className="gallery-tap prev" aria-label="previous photo" onClick={() => go(cur - 1)} />
+          <button className="gallery-tap next" aria-label="next photo" onClick={() => go(cur + 1)} />
+        </>
+      )}
+    </span>
+  );
+}
+
+export const galleryLength = (agent: Pick<Agent, "id" | "emoji" | "photo">) => (agent.photo ? 1 : Math.max(1, agentGallery(agent).length));
+
 // Plain interface glyphs (back, play, close...). These are controls, not decoration, so they stay crisp SVG.
 const PATHS: Record<string, string> = {
   back: "M15 5l-7 7 7 7",
@@ -116,11 +178,13 @@ const PATHS: Record<string, string> = {
   cards: "M7 4h10a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2zM2 7v10M22 7v10",
   check: "M5 12.5l4.5 4.5L19 7",
   down: "M6 9l6 6 6-6",
-  dot: "M12 12h.01",
+  heart: "M12 20.5s-7.5-4.6-7.5-10.1A4.3 4.3 0 0 1 12 7.6a4.3 4.3 0 0 1 7.5 2.8c0 5.5-7.5 10.1-7.5 10.1z",
+  sun: "M12 4V2M12 22v-2M4 12H2M22 12h-2M5.6 5.6L4.2 4.2M19.8 19.8l-1.4-1.4M5.6 18.4l-1.4 1.4M19.8 4.2l-1.4 1.4M12 16.5a4.5 4.5 0 1 0 0-9 4.5 4.5 0 0 0 0 9z",
+  moon: "M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5z",
 };
 
 export function Glyph({ name, size = 18, className = "" }: { name: keyof typeof PATHS; size?: number; className?: string }) {
-  const filled = name === "play";
+  const filled = name === "play" || name === "heart";
   return (
     <svg
       className={`glyph ${className}`}

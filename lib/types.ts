@@ -49,6 +49,8 @@ export interface ChatMsg {
   text: string;
   pump?: number; // -3..3, how much this line moved the couple's chart
   source: "claude" | "stub";
+  at?: number; // when it landed in the chat (older chats don't have it)
+  liked?: boolean; // the viewer double-tapped it
 }
 
 export interface Match {

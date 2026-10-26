@@ -5,7 +5,7 @@ import type { Agent } from "./types";
 // listed here, then cached in KV and on the CDN for good. Nothing in the interface is an emoji.
 // Changing a prompt changes its hash, so the new version gets generated and the old cache is skipped.
 
-export type ArtKind = "icon" | "portrait" | "scene";
+export type ArtKind = "icon" | "portrait" | "scene" | "shot";
 
 interface ArtSpec {
   kind: ArtKind;
@@ -18,6 +18,9 @@ const ICON_STYLE =
 
 const PORTRAIT_STYLE =
   "Candid dating-app profile photo of a fictional adult man (not any real or famous person). Vertical portrait framing from the chest up, natural flattering light, shallow depth of field, real-camera photorealism, warm color grade, looking relaxed and confident. Fully clothed. No text, logos, watermarks or captions.";
+
+const SHOT_STYLE =
+  "Casual phone photo from a fictional adult man's dating profile (not any real or famous person). Real-camera photorealism, natural light, vertical framing, fully clothed. No text, logos, watermarks or captions.";
 
 const SCENE_STYLE =
   "Glossy 3D illustration, soft clay-like render, warm coral, hot pink and violet palette with soft white highlights, dreamy lighting, centered composition, isolated on a fully transparent background. No text, no letters, no people.";
@@ -90,11 +93,24 @@ export const AVATARS: { key: string; label: string; look: string }[] = [
 const starterLook = (a: Agent) =>
   [`about ${a.age}`, a.bodyType && `${a.bodyType.toLowerCase()} build`, a.height, a.look].filter(Boolean).join(", ");
 
+// Extra shots for the house agents' profiles, so they have a camera roll like a real dating profile.
+// Each one restates his look so the photos read as the same guy.
+const EXTRA_SHOTS = [
+  "Candid photo at the gym between sets, sweaty and grinning, wearing a fitted tee",
+  "Night-out photo at a neon-lit bar, drink in hand, laughing with friends blurred behind him",
+  "Daytime photo at a sunny brunch table, sunglasses pushed up, phone showing a green price chart",
+];
+
 const SPECS: Record<string, ArtSpec> = {
   ...Object.fromEntries(Object.entries(ICONS).map(([k, v]) => [`icon-${k}`, { kind: "icon" as const, subject: v }])),
   ...Object.fromEntries(Object.entries(SCENES).map(([k, v]) => [`scene-${k}`, { kind: "scene" as const, subject: v }])),
   ...Object.fromEntries(AVATARS.map((a) => [`avatar-${a.label.replace(/\s+/g, "-")}`, { kind: "portrait" as const, subject: a.look }])),
   ...Object.fromEntries(STARTERS.map((a) => [`agent-${a.id}`, { kind: "portrait" as const, subject: starterLook(a) }])),
+  ...Object.fromEntries(
+    STARTERS.flatMap((a) =>
+      EXTRA_SHOTS.map((shot, i) => [`agent-${a.id}-${i + 2}`, { kind: "shot" as const, subject: `${shot}. He is ${starterLook(a)}.` }]),
+    ),
+  ),
 };
 
 export const ART_NAMES = Object.keys(SPECS);
@@ -104,6 +120,7 @@ export function artPrompt(name: string): string | null {
   if (!s) return null;
   if (s.kind === "icon") return `${ICON_STYLE} The icon: ${s.subject}.`;
   if (s.kind === "scene") return `${SCENE_STYLE} The scene: ${s.subject}.`;
+  if (s.kind === "shot") return `${SHOT_STYLE} ${s.subject}`;
   return `${PORTRAIT_STYLE} He is ${s.subject}.`;
 }
 
@@ -128,4 +145,12 @@ export function avatarArt(a: Pick<Agent, "id" | "emoji">): string | null {
   if (SPECS[`agent-${a.id}`]) return `agent-${a.id}`;
   const preset = AVATARS.find((x) => x.key === a.emoji || x.label === a.emoji);
   return preset ? `avatar-${preset.label.replace(/\s+/g, "-")}` : null;
+}
+
+// Every picture on an agent's profile, main one first. Only house agents have extra shots.
+export function agentGallery(a: Pick<Agent, "id" | "emoji">): string[] {
+  const main = avatarArt(a);
+  if (!main) return [];
+  const extra = EXTRA_SHOTS.map((_, i) => `agent-${a.id}-${i + 2}`).filter((n) => SPECS[n]);
+  return [main, ...extra];
 }
