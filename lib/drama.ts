@@ -68,7 +68,7 @@ export function toChatMsgs(ep: Episode & { source: "claude" | "stub" }, m: Match
 
 // Append a released message, and record what it set off.
 export function applyMsg(m: Match, msg: ChatMsg): Match {
-  const next: Match = { ...m, messages: [...m.messages, msg] };
+  const next: Match = { ...m, messages: [...m.messages, { ...msg, at: msg.at ?? Date.now() }] };
   if (msg.kind === "rug" && !m.rug) next.rug = { by: msg.from, at: Date.now() };
   if (msg.kind === "reveal") next.revealed = true;
   return next;

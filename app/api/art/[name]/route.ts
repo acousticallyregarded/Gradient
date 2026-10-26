@@ -28,7 +28,7 @@ async function shrink(buf: Buffer, kind: string): Promise<Buffer> {
   try {
     const sharp = (await import("sharp")).default;
     const pipe = sharp(buf);
-    if (kind === "portrait") pipe.resize(600, 900, { fit: "cover" });
+    if (kind === "portrait" || kind === "shot") pipe.resize(600, 900, { fit: "cover" });
     else pipe.resize(kind === "scene" ? 512 : 256, kind === "scene" ? 512 : 256, { fit: "contain", background: { r: 0, g: 0, b: 0, alpha: 0 } });
     return await pipe.webp({ quality: 80, alphaQuality: 90 }).toBuffer();
   } catch (e) {
@@ -70,9 +70,9 @@ export async function GET(req: Request, { params }: { params: Promise<{ name: st
       body: JSON.stringify({
         model: MODEL,
         prompt,
-        size: kind === "portrait" ? "1024x1536" : "1024x1024",
+        size: kind === "portrait" || kind === "shot" ? "1024x1536" : "1024x1024",
         quality: QUALITY,
-        background: kind === "portrait" ? "opaque" : "transparent",
+        background: kind === "portrait" || kind === "shot" ? "opaque" : "transparent",
         output_format: "webp",
         output_compression: 90,
         n: 1,
