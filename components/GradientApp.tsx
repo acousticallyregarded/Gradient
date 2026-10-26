@@ -840,6 +840,31 @@ export default function GradientApp({ initialView = "grid", postId: initialPost 
   );
 }
 
+function SwipeCard({ a, children }: { a: Agent; children?: React.ReactNode }) {
+  return (
+    <>
+      {children}
+      <AgentPhoto agent={a} className="swipe-photo" />
+      <div className="swipe-info">
+        <h3>
+          {a.name} <span className="age">{a.age}</span>
+          {a.verified && <Verified size={20} />}
+        </h3>
+        <p>{a.bio}</p>
+        <div className="chips">
+          {a.tags.map((t) => (
+            <span key={t} className="chip">
+              {t}
+            </span>
+          ))}
+        </div>
+      </div>
+    </>
+  );
+}
+
+// Tinder-style deck: the next two cards are already rendered (and their pics loaded) underneath, and the one
+// below grows into place as you drag. A decided swipe flies the top card off before moving on.
 function Swipe({
   agents,
   idx,
@@ -854,6 +879,8 @@ function Swipe({
   onReset: () => void;
 }) {
   const [dx, setDx] = useState(0);
+  const [dragging, setDragging] = useState(false);
+  const [leaving, setLeaving] = useState<"l" | "r" | null>(null);
   const start = useRef<number | null>(null);
   const a = agents[idx];
   if (!a)
@@ -865,48 +892,76 @@ function Swipe({
         </button>
       </div>
     );
-  const end = () => {
-    if (dx > 90) onTap(a);
-    else if (dx < -90) onPass();
-    setDx(0);
-    start.current = null;
+  const fly = (dir: "l" | "r") => {
+    if (leaving) return;
+    setLeaving(dir);
+    setTimeout(() => {
+      if (dir === "r") onTap(a);
+      else onPass();
+      setDx(0);
+      setLeaving(null);
+    }, 260);
   };
+  const end = () => {
+    setDragging(false);
+    start.current = null;
+    if (dx > 90) fly("r");
+    else if (dx < -90) fly("l");
+    else setDx(0);
+  };
+  const progress = leaving ? 1 : Math.min(1, Math.abs(dx) / 120);
+  const deck = agents.slice(idx, idx + 3);
   return (
     <div className="swipe">
-      <div
-        className="swipe-card"
-        style={{ transform: `translateX(${dx}px) rotate(${dx / 18}deg)` }}
-        onPointerDown={(e) => {
-          start.current = e.clientX;
-          (e.target as HTMLElement).setPointerCapture?.(e.pointerId);
-        }}
-        onPointerMove={(e) => start.current !== null && setDx(e.clientX - start.current)}
-        onPointerUp={end}
-        onPointerCancel={end}
-      >
-        {dx > 40 && <div className="stamp yes">APE</div>}
-        {dx < -40 && <div className="stamp no">JEET</div>}
-        <AgentPhoto agent={a} className="swipe-photo" />
-        <div className="swipe-info">
-          <h3>
-            {a.name} <span className="age">{a.age}</span>
-            {a.verified && <Verified size={20} />}
-          </h3>
-          <p>{a.bio}</p>
-          <div className="chips">
-            {a.tags.map((t) => (
-              <span key={t} className="chip">
-                {t}
-              </span>
-            ))}
-          </div>
-        </div>
+      <div className="swipe-deck">
+        {deck
+          .map((x, i) => {
+            if (i === 0)
+              return (
+                <div
+                  key={x.id}
+                  className={`swipe-card top ${dragging ? "dragging" : ""}`}
+                  style={{
+                    transform: leaving
+                      ? `translateX(${leaving === "r" ? 150 : -150}%) rotate(${leaving === "r" ? 24 : -24}deg)`
+                      : `translateX(${dx}px) rotate(${dx / 18}deg)`,
+                  }}
+                  onPointerDown={(e) => {
+                    if (leaving) return;
+                    start.current = e.clientX;
+                    setDragging(true);
+                    (e.target as HTMLElement).setPointerCapture?.(e.pointerId);
+                  }}
+                  onPointerMove={(e) => start.current !== null && setDx(e.clientX - start.current)}
+                  onPointerUp={end}
+                  onPointerCancel={end}
+                >
+                  <SwipeCard a={x}>
+                    {(dx > 40 || leaving === "r") && <div className="stamp yes">APE</div>}
+                    {(dx < -40 || leaving === "l") && <div className="stamp no">JEET</div>}
+                  </SwipeCard>
+                </div>
+              );
+            // the card right below grows into place as the top one moves away; the third just waits (and preloads)
+            const depth = i - progress;
+            return (
+              <div
+                key={x.id}
+                className={`swipe-card under ${dragging ? "dragging" : ""}`}
+                style={{ transform: `translateY(${depth * 14}px) scale(${1 - depth * 0.05})`, opacity: i === 2 ? progress : 1 }}
+                aria-hidden="true"
+              >
+                <SwipeCard a={x} />
+              </div>
+            );
+          })
+          .reverse()}
       </div>
       <div className="swipe-btns">
-        <button className="round no" onClick={onPass} aria-label="pass">
+        <button className="round no" onClick={() => fly("l")} aria-label="pass">
           <Glyph name="close" size={26} />
         </button>
-        <button className="round yes" onClick={() => onTap(a)} aria-label="tap">
+        <button className="round yes" onClick={() => fly("r")} aria-label="tap">
           <Icon name="flame" size={34} />
         </button>
       </div>
